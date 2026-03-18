@@ -13,21 +13,21 @@ func Run(game Game, config config) error {
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
 
-		if err := Step(game, dt); err != nil {
+		if err := update(game, dt); err != nil {
 			return err
 		}
+
+		draw(game)
 	}
 
 	return nil
 }
-func Step(game Game, dt float32) error {
-	if err := game.Update(dt); err != nil {
-		return err
-	}
+func update(game Game, dt float32) error {
+	return game.Update(dt)
+}
 
+func draw(game Game) {
 	rl.BeginDrawing()
 	defer rl.EndDrawing()
 	game.Draw()
-
-	return nil
 }
