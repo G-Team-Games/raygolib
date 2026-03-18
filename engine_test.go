@@ -15,7 +15,7 @@ func (g *TestGame) Update(dt float32) error {
 	return nil
 }
 
-func (g *TestGame) Render() {
+func (g *TestGame) Draw() {
 	g.renderCalls++
 }
 
@@ -42,7 +42,7 @@ func (g *ErrorGame) Update(dt float32) error {
 	return errors.New("update failed")
 }
 
-func (g *ErrorGame) Render() {}
+func (g *ErrorGame) Draw() {}
 
 func TestStepReturnsError(t *testing.T) {
 	game := &ErrorGame{}
