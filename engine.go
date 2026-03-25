@@ -4,6 +4,26 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
+// Engine struct
+type engine struct {
+	game    Game
+	modules []Module
+}
+
+type Module interface {
+	Update(dt float32) error
+	Draw()
+}
+
+type Option func(*config)
+
+func WithDebugMode(debug bool) Option {
+	return func(c *config) {
+		c.DebugMode = debug
+	}
+
+}
+
 func Run(game Game, config config) error {
 	rl.InitWindow(config.ScreenWidth, config.ScreenHeight, config.Title)
 	defer rl.CloseWindow()
