@@ -17,9 +17,8 @@ func (g *Game) Draw() {
 }
 
 func main() {
-	game := &Game{}
-
-	if err := rgl.Run(game); err != nil {
+	game := rgl.InitGame(&Game{})
+	if err := game.Run(); err != nil {
 		panic(err)
 	}
 }
