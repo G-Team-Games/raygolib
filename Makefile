@@ -18,7 +18,7 @@ help:
 	@echo "  make sonar-scan      - run sonar scanner (requires SONAR_TOKEN in environment)"
 
 test:
-	go test ./...
+	go test -race ./...
 
 coverage:
 	mkdir -p $(COVERAGE_DIR)
