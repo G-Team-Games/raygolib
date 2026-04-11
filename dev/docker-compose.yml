@@ -1,0 +1,37 @@
+services:
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: sonarqube
+    ports:
+      - "9000:9000"
+    networks:
+      - sonarnet
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+
+  sonar-scanner:
+    image: sonarsource/sonar-scanner-cli:latest
+    container_name: sonar-scanner
+    depends_on:
+      - sonarqube
+    networks:
+      - sonarnet
+    env_file:
+      - .env
+    environment:
+      SONAR_HOST_URL: "http://sonarqube:9000"
+      SONAR_LOGIN: "${SONAR_TOKEN}"
+    volumes:
+      - ../:/usr/src
+    working_dir: /usr/src
+    entrypoint: ["sonar-scanner", "-Dproject.settings=dev/sonar-project.properties"]
+
+networks:
+  sonarnet:
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
