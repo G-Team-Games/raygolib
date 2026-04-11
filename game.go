@@ -1,24 +1,25 @@
 package raygolib
 
 import (
-	rl "github.com/gen2brain/raylib-go/raylib"
+	irl "github.com/G-Team-Games/raygolib/internal/raylib"
 )
 
-// Main game interface - use it to implement your game logic
+// Main game interface - used to implement game logic
 type Game interface {
 	Update(dt float32) error
 	Draw()
 }
 
-// Middleware type - use it to wrap your game with additional functionality 
+// Middleware type - used to wrap game with additional functionality
 // (like debug overlay)
 type Middleware func(Game) Game
 
-// Game initializer - use it to configure and run your game
+// Game initializer - used to configure and run game
 type gameInitializer struct {
 	game        Game
 	cfg         *InitGameConfig
 	middlewares []Middleware
+	backend     irl.InitBackend
 }
 
 // InitGame initializes the game with default configuration
@@ -33,8 +34,9 @@ func InitGameWithConfig(game Game, cfg *InitGameConfig) *gameInitializer {
 	}
 
 	return &gameInitializer{
-		game: game,
-		cfg:  baseCfg,
+		game:    game,
+		cfg:     baseCfg,
+		backend: irl.NewRlInitBackend(),
 	}
 }
 
@@ -44,27 +46,26 @@ func (gi *gameInitializer) WithMiddleware(m Middleware) *gameInitializer {
 }
 
 func (gi *gameInitializer) Run() error {
-	rl.InitWindow(int32(gi.cfg.ScreenWidth), int32(gi.cfg.ScreenHeight), gi.cfg.WindowTitle)
-	defer rl.CloseWindow()
+	gi.backend.InitWindow(int32(gi.cfg.ScreenWidth), int32(gi.cfg.ScreenHeight), gi.cfg.WindowTitle)
+	defer gi.backend.CloseWindow()
 
-	rl.SetTargetFPS(int32(gi.cfg.TargetFPS))
+	gi.backend.SetTargetFPS(int32(gi.cfg.TargetFPS))
 
 	for _, m := range gi.middlewares {
 		gi.game = m(gi.game)
 	}
 
-	for !rl.WindowShouldClose() {
-		dt := rl.GetFrameTime()
+	for !gi.backend.WindowShouldClose() {
+		dt := gi.backend.GetFrameTime()
 		if err := gi.game.Update(dt); err != nil {
 			return err
 		}
 
-		rl.BeginDrawing()
+		gi.backend.BeginDrawing()
 		gi.game.Draw()
-		rl.EndDrawing()
+		gi.backend.EndDrawing()
 	}
 
-	defer rl.CloseWindow()
 	return nil
 }
 
