@@ -13,8 +13,9 @@ const (
 	ShapeCylinderY
 	// Finite axis-aligned plane rectangle, see PlaneAxis type
 	ShapePlaneRect
+	// Point in 3D space
+	ShapePoint
 )
-
 
 // Pure collider interface
 type Collider interface {

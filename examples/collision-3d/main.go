@@ -19,6 +19,7 @@ type Game struct {
 	active  int
 	box     *col3d.BoxCollider
 	cyl     *col3d.CylinderCollider
+	point   *col3d.PointCollider
 	contact col3d.Contact
 	states  []colliderState
 }
@@ -37,11 +38,13 @@ func NewGame() *Game {
 			Fovy:       45,
 			Projection: rl.CameraPerspective,
 		},
-		box: col3d.NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
-		cyl: col3d.NewCylinderCollider(rl.NewVector3(3, 0, 3), 1.0, 2.0),
+		box:   col3d.NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+		cyl:   col3d.NewCylinderCollider(rl.NewVector3(3, 0, 3), 1.0, 2.0),
+		point: col3d.NewPointXYZ(4, 4, 4),
 		states: []colliderState{
 			{name: "Box", color: rl.Blue},
 			{name: "Cylinder", color: rl.Green},
+			{name: "Point", color: rl.Red},
 		},
 	}
 }
@@ -53,11 +56,29 @@ func (g *Game) Update(dt float32) error {
 		g.active = (g.active + 1) % len(g.states)
 	}
 
-	g.contact = col3d.Contact{}
 	g.moveActive(dt)
 
-	g.contact = g.box.Collide(g.cyl)
-	col3d.ResolveByMTV(g.box.GetPosition, g.box.SetPosition, g.contact)
+	g.contact = col3d.Contact{}
+	var getPosFunc func() rl.Vector3
+	var setPosFunc func(rl.Vector3)
+
+	switch g.active {
+	case 0:
+		g.contact = g.box.Collide(g.cyl)
+		getPosFunc = g.box.GetPosition
+		setPosFunc = g.box.SetPosition
+	case 1:
+		g.contact = g.cyl.Collide(g.box)
+		getPosFunc = g.cyl.GetPosition
+		setPosFunc = g.cyl.SetPosition
+	case 2:
+		g.contact = g.point.Collide(g.box)
+		getPosFunc = g.point.GetPosition
+		setPosFunc = g.point.SetPosition
+		println(fmt.Sprintf("Hit: %v, Distance: %v, Penetration: %v", g.contact.Hit, g.contact.Distance, g.contact.Penetration))
+	}
+
+	col3d.ResolveByMTV(getPosFunc, setPosFunc, g.contact)
 
 	return nil
 }
@@ -151,6 +172,8 @@ func (g *Game) moveActive(dt float32) {
 		g.box.SetPosition(rl.Vector3Add(g.box.GetPosition(), move))
 	case 1:
 		g.cyl.SetPosition(rl.Vector3Add(g.cyl.GetPosition(), move))
+	case 2:
+		g.point.SetPosition(rl.Vector3Add(g.point.GetPosition(), move))
 	}
 
 }
@@ -173,22 +196,26 @@ func (g *Game) drawCylinder() {
 	rl.DrawCylinderWires(g.cyl.Position, g.cyl.Radius, g.cyl.Radius, g.cyl.Height, 24, g.states[1].color)
 }
 
-
 func (g *Game) drawPositionPoints() {
 	boxPos := g.box.GetPosition()
 	cylPos := g.cyl.GetPosition()
+	ptPos := g.point.GetPosition()
 
 	rl.DrawSphere(boxPos, 0.10, rl.DarkBlue)
+	rl.DrawSphere(ptPos, 0.10, rl.Red)
 	rl.DrawSphere(cylPos, 0.10, rl.DarkGreen)
 
 	rl.DrawLine3D(boxPos, rl.Vector3Add(boxPos, rl.NewVector3(0, 0.45, 0)), rl.DarkBlue)
 	rl.DrawLine3D(cylPos, rl.Vector3Add(cylPos, rl.NewVector3(0, 0.45, 0)), rl.DarkGreen)
+	rl.DrawLine3D(ptPos, rl.Vector3Add(ptPos, rl.NewVector3(0, 0.45, 0)), rl.Red)
 }
 
 func (g *Game) drawUI() {
 	active := g.states[g.active].name
 	boxPos := g.box.GetPosition()
+	ptPos := g.point.GetPosition()
 	cylPos := g.cyl.GetPosition()
+
 	camPos := g.camera.Position
 
 	rl.DrawText("Collision 3D demo", 16, 12, 24, rl.Black)
@@ -199,6 +226,7 @@ func (g *Game) drawUI() {
 	rl.DrawText(fmt.Sprintf("Camera pos: (%.2f, %.2f, %.2f)", camPos.X, camPos.Y, camPos.Z), 16, 148, 20, rl.Brown)
 	rl.DrawText(fmt.Sprintf("Box pos: (%.2f, %.2f, %.2f)", boxPos.X, boxPos.Y, boxPos.Z), 16, 172, 20, rl.DarkBlue)
 	rl.DrawText(fmt.Sprintf("Cylinder pos: (%.2f, %.2f, %.2f)", cylPos.X, cylPos.Y, cylPos.Z), 16, 196, 20, rl.DarkGreen)
+	rl.DrawText(fmt.Sprintf("Point pos: (%.2f, %.2f, %.2f)", ptPos.X, ptPos.Y, ptPos.Z), 16, 220, 20, rl.DarkBlue)
 
 	status := "No collision"
 	if g.contact.Hit {

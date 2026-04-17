@@ -13,7 +13,6 @@ type Contact struct {
 	Penetration float32
 }
 
-
 func boxVsBoxContact(a, b BoxCollider) Contact {
 	// Penetration on each axis
 	px := overlap1D(a.Position.X, a.Position.X+a.Size.X, b.Position.X, b.Position.X+b.Size.X)
@@ -153,5 +152,86 @@ func cylinderVsCylinderContact(a, b CylinderCollider) Contact {
 		Hit:         true,
 		Normal:      rl.NewVector3(0, -1, 0),
 		Penetration: -distanceY2,
+	}
+}
+
+func boxVsPointContact(box *BoxCollider, pt *PointCollider) Contact {
+	px := overlap1D(box.Position.X, box.Position.X+box.Size.X, pt.Position.X, pt.Position.X)
+	py := overlap1D(box.Position.Y, box.Position.Y+box.Size.Y, pt.Position.Y, pt.Position.Y)
+	pz := overlap1D(box.Position.Z, box.Position.Z+box.Size.Z, pt.Position.Z, pt.Position.Z)
+
+	// fmt.Printf("px: %v, py: %v, pz: %v\n", px, py, pz)
+
+	// BUG: when one or two of the overlaps is exactly zero, the distance is not correct.
+	// When Point is on the one axis collision with box, but distance on the other axes is 0, 
+	// so it is almost always 0, even if point is far away on the other axes. This is because 
+	// of the way distance is calculated as max of overlaps, which can be zero if point is on 
+	// the edge of box on one axis, even if it is far away on the other axes.
+
+	const epsilon float32 = 1e-7
+
+	if px <= epsilon || py <= epsilon || pz <= epsilon {
+		// fmt.Printf("px: %v, py: %v, pz: %v\n", px, py, pz)
+		return Contact{
+			Hit:      false,
+			Distance: math32.Max(px, math32.Max(py, pz)),
+		}
+	}
+
+	center := box.Center()
+	normal := rl.NewVector3(sign(center.X-pt.Position.X), sign(center.Y-pt.Position.Y), sign(center.Z-pt.Position.Z))
+
+	return Contact{
+		Hit:         true,
+		Normal:      normal,
+		Penetration: math32.Min(px, math32.Min(py, pz)),
+	}
+}
+
+func cylinderVsPointContact(cylinder *CylinderCollider, pt *PointCollider) Contact {
+	closestX := math32.Min(cylinder.Position.X+cylinder.Radius, math32.Max(cylinder.Position.X-cylinder.Radius, pt.Position.X))
+	closestZ := math32.Min(cylinder.Position.Z+cylinder.Radius, math32.Max(cylinder.Position.Z-cylinder.Radius, pt.Position.Z))
+
+	dx := pt.Position.X - closestX
+	dz := pt.Position.Z - closestZ
+
+	distXZ := math32.Sqrt(dx*dx + dz*dz)
+	penetrationXZ := cylinder.Radius - distXZ
+
+	penetrationY := overlap1D(cylinder.Position.Y, cylinder.Position.Y+cylinder.Height, pt.Position.Y, pt.Position.Y)
+
+	if penetrationXZ <= 0 || penetrationY <= 0 {
+		return Contact{
+			Hit:      false,
+			Distance: math32.Max(penetrationXZ, penetrationY),
+		}
+	}
+
+	var normalXZ rl.Vector3
+	if distXZ > 0 {
+		normalXZ = rl.NewVector3(dx/distXZ, 0, dz/distXZ)
+	} else {
+		normalXZ = rl.NewVector3(1, 0, 0)
+	}
+
+	var normal rl.Vector3
+	var penetration float32
+
+	if penetrationXZ < penetrationY {
+		// Side collision
+		normal = normalXZ
+		penetration = penetrationXZ
+	} else {
+		// Top/bottom collision
+		centerC := cylinder.Center().Y
+		centerP := pt.Position.Y
+		normal = rl.NewVector3(0, sign(centerC-centerP), 0)
+		penetration = penetrationY
+	}
+
+	return Contact{
+		Hit:         true,
+		Normal:      normal,
+		Penetration: penetration,
 	}
 }
