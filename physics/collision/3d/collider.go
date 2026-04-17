@@ -1,4 +1,4 @@
-package collision
+package col3d
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -15,13 +15,6 @@ const (
 	ShapePlaneRect
 )
 
-// Collision query result between two shapes or ray and shape
-type Contact struct {
-	Hit         bool
-	Normal      rl.Vector3
-	Distance    float32
-	Penetration float32
-}
 
 // Pure collider interface
 type Collider interface {

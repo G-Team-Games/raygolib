@@ -1,4 +1,4 @@
-package collision
+package col3d
 
 import rl "github.com/gen2brain/raylib-go/raylib"
 

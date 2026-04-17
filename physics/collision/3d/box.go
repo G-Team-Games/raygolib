@@ -1,6 +1,8 @@
-package collision
+package col3d
 
-import rl "github.com/gen2brain/raylib-go/raylib"
+import (
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
 
 type BoxCollider struct {
 	Position rl.Vector3

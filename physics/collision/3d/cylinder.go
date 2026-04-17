@@ -1,4 +1,4 @@
-package collision
+package col3d
 
 import (
 	"github.com/chewxy/math32"

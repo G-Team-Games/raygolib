@@ -1,9 +1,18 @@
-package collision
+package col3d
 
 import (
 	"github.com/chewxy/math32"
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
+
+// Collision query result between two shapes or ray and shape
+type Contact struct {
+	Hit         bool
+	Normal      rl.Vector3
+	Distance    float32
+	Penetration float32
+}
+
 
 func boxVsBoxContact(a, b BoxCollider) Contact {
 	// Penetration on each axis

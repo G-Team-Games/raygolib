@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	rgl "github.com/G-Team-Games/raygolib"
-	"github.com/G-Team-Games/raygolib/physics/collision"
+	col3d "github.com/G-Team-Games/raygolib/physics/collision/3d"
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
@@ -17,9 +17,9 @@ const (
 type Game struct {
 	camera  rl.Camera3D
 	active  int
-	box     *collision.BoxCollider
-	cyl     *collision.CylinderCollider
-	contact collision.Contact
+	box     *col3d.BoxCollider
+	cyl     *col3d.CylinderCollider
+	contact col3d.Contact
 	states  []colliderState
 }
 
@@ -37,8 +37,8 @@ func NewGame() *Game {
 			Fovy:       45,
 			Projection: rl.CameraPerspective,
 		},
-		box: collision.NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
-		cyl: collision.NewCylinderCollider(rl.NewVector3(3, 0, 3), 1.0, 2.0),
+		box: col3d.NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+		cyl: col3d.NewCylinderCollider(rl.NewVector3(3, 0, 3), 1.0, 2.0),
 		states: []colliderState{
 			{name: "Box", color: rl.Blue},
 			{name: "Cylinder", color: rl.Green},
@@ -53,11 +53,11 @@ func (g *Game) Update(dt float32) error {
 		g.active = (g.active + 1) % len(g.states)
 	}
 
-	g.contact = collision.Contact{}
+	g.contact = col3d.Contact{}
 	g.moveActive(dt)
 
 	g.contact = g.box.Collide(g.cyl)
-	collision.ResolveByMTV(g.box.GetPosition, g.box.SetPosition, g.contact)
+	col3d.ResolveByMTV(g.box.GetPosition, g.box.SetPosition, g.contact)
 
 	return nil
 }
