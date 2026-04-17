@@ -109,8 +109,7 @@ func cylinderVsPlaneContact(cylinder CylinderCollider, plane PlaneCollider) Cont
 			normalXZ = rl.NewVector2(-normal3.X, -normal3.Z)
 		}
 		normal := rl.NewVector3(normalXZ.X, 0, normalXZ.Y)
-		point := rl.NewVector3(cylinder.Position.X, cylinder.Position.Y, cylinder.Position.Z)
-		return Contact{Hit: true, Point: point, Normal: normal, Penetration: penetrationXZ}
+		return Contact{Hit: true, Normal: normal, Penetration: penetrationXZ}
 
 	case PlaneAxisYPos, PlaneAxisYNeg:
 		difference := rl.Vector2Subtract(
@@ -132,7 +131,7 @@ func cylinderVsPlaneContact(cylinder CylinderCollider, plane PlaneCollider) Cont
 		if plane.Axis == PlaneAxisYNeg {
 			return Contact{
 				Hit:         true,
-				Point:       rl.NewVector3(cylinder.Position.X, plane.Position.Y, cylinder.Position.Z),
+			
 				Normal:      rl.NewVector3(0, 1, 0),
 				Penetration: -distanceY2,
 			}
@@ -140,7 +139,6 @@ func cylinderVsPlaneContact(cylinder CylinderCollider, plane PlaneCollider) Cont
 
 		return Contact{
 			Hit:         true,
-			Point:       rl.NewVector3(cylinder.Position.X, plane.Position.Y, cylinder.Position.Z),
 			Normal:      rl.NewVector3(0, -1, 0),
 			Penetration: -distanceY1,
 		}

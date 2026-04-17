@@ -7,8 +7,8 @@ type BoxCollider struct {
 	Size     rl.Vector3
 }
 
-// Creates box collider from min corner and size
-func NewBoxCollider(position rl.Vector3, size rl.Vector3) *BoxCollider {
+// Creates box collider from min corner and size as rl.Vector3
+func NewBoxColliderV(position rl.Vector3, size rl.Vector3) *BoxCollider {
 	return &BoxCollider{Position: position, Size: size}
 }
 
@@ -34,6 +34,8 @@ func (b *BoxCollider) Collide(other Collider) Contact {
 		return Contact{}
 	}
 }
+
+// TODO: Add custom collide method that accepts the collision solver
 
 // Returns raylib AABB representation of box
 func (b *BoxCollider) BoundingBox() rl.BoundingBox {

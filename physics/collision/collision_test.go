@@ -8,8 +8,8 @@ import (
 
 func TestBoxVsBoxContact(t *testing.T) {
 	t.Run("hit with penetration", func(t *testing.T) {
-		a := NewBoxCollider(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2))
-		b := NewBoxCollider(rl.NewVector3(1, 0, 0), rl.NewVector3(2, 2, 2))
+		a := NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2))
+		b := NewBoxColliderV(rl.NewVector3(1, 0, 0), rl.NewVector3(2, 2, 2))
 
 		hit := Collide(a, b)
 		if !hit.Hit {
@@ -21,8 +21,8 @@ func TestBoxVsBoxContact(t *testing.T) {
 	})
 
 	t.Run("miss", func(t *testing.T) {
-		a := NewBoxCollider(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1))
-		b := NewBoxCollider(rl.NewVector3(3, 0, 0), rl.NewVector3(1, 1, 1))
+		a := NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1))
+		b := NewBoxColliderV(rl.NewVector3(3, 0, 0), rl.NewVector3(1, 1, 1))
 
 		hit := Collide(a, b)
 		if hit.Hit {
@@ -32,7 +32,7 @@ func TestBoxVsBoxContact(t *testing.T) {
 }
 
 func TestBoxHelpers(t *testing.T) {
-	box := NewBoxCollider(rl.NewVector3(1, 2, 3), rl.NewVector3(4, 6, 8))
+	box := NewBoxColliderV(rl.NewVector3(1, 2, 3), rl.NewVector3(4, 6, 8))
 
 	center := box.Center()
 	if center.X != 3 || center.Y != 5 || center.Z != 7 {
@@ -51,7 +51,7 @@ func TestBoxHelpers(t *testing.T) {
 }
 
 func TestRaycastBox(t *testing.T) {
-	box := NewBoxCollider(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2))
+	box := NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2))
 	ray := rl.NewRay(rl.NewVector3(-5, 1, 1), rl.NewVector3(1, 0, 0))
 
 	hit := Raycast(ray, box)
@@ -65,7 +65,7 @@ func TestRaycastBox(t *testing.T) {
 
 func TestCylinderVsBoxContactAndResolve(t *testing.T) {
 	cylinder := NewCylinderCollider(rl.NewVector3(0.5, 0, 0.5), 0.5, 2)
-	box := NewBoxCollider(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 2, 1))
+	box := NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 2, 1))
 
 	hit := Collide(cylinder, box)
 	if !hit.Hit {

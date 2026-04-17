@@ -13,14 +13,14 @@ func Raycast(ray rl.Ray, collider Collider) Contact {
 		if !hit.Hit {
 			return Contact{}
 		}
-		return Contact{Hit: true, Point: hit.Point, Normal: hit.Normal, Distance: hit.Distance}
+		return Contact{Hit: true, Normal: hit.Normal, Distance: hit.Distance}
 	case *PlaneCollider:
 		p1, p2, p3, p4 := planeQuad(*c)
 		hit := rl.GetRayCollisionQuad(ray, p1, p2, p3, p4)
 		if !hit.Hit {
 			return Contact{}
 		}
-		return Contact{Hit: true, Point: hit.Point, Normal: hit.Normal, Distance: hit.Distance}
+		return Contact{Hit: true, Normal: hit.Normal, Distance: hit.Distance}
 	case *CylinderCollider:
 		return raycastCylinder(ray, *c)
 	default:
@@ -33,7 +33,7 @@ func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) Contact {
 	hit := rl.GetRayCollisionSphere(ray, cylinder.Position, cylinder.Radius)
 	if hit.Hit {
 		if hit.Point.Y >= cylinder.Position.Y && hit.Point.Y <= cylinder.Position.Y+cylinder.Height {
-			return Contact{Hit: true, Point: hit.Point, Normal: hit.Normal, Distance: hit.Distance}
+			return Contact{Hit: true, Normal: hit.Normal, Distance: hit.Distance}
 		}
 	}
 
@@ -50,7 +50,7 @@ func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) Contact {
 	if hitBottom.Hit {
 		delta := rl.Vector2Subtract(rl.NewVector2(hitBottom.Point.X, hitBottom.Point.Z), rl.NewVector2(bottomCenter.X, bottomCenter.Z))
 		if rl.Vector2Length(delta) <= cylinder.Radius {
-			return Contact{Hit: true, Point: hitBottom.Point, Normal: hitBottom.Normal, Distance: hitBottom.Distance}
+			return Contact{Hit: true, Normal: hitBottom.Normal, Distance: hitBottom.Distance}
 		}
 	}
 
@@ -64,7 +64,7 @@ func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) Contact {
 	if hitTop.Hit {
 		delta := rl.Vector2Subtract(rl.NewVector2(hitTop.Point.X, hitTop.Point.Z), rl.NewVector2(topCenter.X, topCenter.Z))
 		if rl.Vector2Length(delta) <= cylinder.Radius {
-			return Contact{Hit: true, Point: hitTop.Point, Normal: hitTop.Normal, Distance: hitTop.Distance}
+			return Contact{Hit: true, Normal: hitTop.Normal, Distance: hitTop.Distance}
 		}
 	}
 

@@ -18,7 +18,6 @@ const (
 // Collision query result between two shapes or ray and shape
 type Contact struct {
 	Hit         bool
-	Point       rl.Vector3
 	Normal      rl.Vector3
 	Distance    float32
 	Penetration float32

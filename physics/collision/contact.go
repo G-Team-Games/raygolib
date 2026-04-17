@@ -34,16 +34,8 @@ func boxVsBoxContact(a, b BoxCollider) Contact {
 		normal = rl.NewVector3(0, 0, sign(centerA.Z-centerB.Z))
 	}
 
-	// Middle of collision
-	point := rl.NewVector3(
-		math32.Max(a.Position.X, b.Position.X)+px*0.5,
-		math32.Max(a.Position.Y, b.Position.Y)+py*0.5,
-		math32.Max(a.Position.Z, b.Position.Z)+pz*0.5,
-	)
-
 	return Contact{
 		Hit:         true,
-		Point:       point,
 		Normal:      normal,
 		Penetration: penetration,
 	}
@@ -98,40 +90,21 @@ func cylinderVsBoxContact(cylinder CylinderCollider, box BoxCollider) Contact {
 
 	var normal rl.Vector3
 	var penetration float32
-	var point rl.Vector3
 
 	if penetrationXZ < penetrationY {
 		// Side collision
 		normal = normalXZ
 		penetration = penetrationXZ
-
-		point = rl.NewVector3(
-			closestX,
-			math32.Min(
-				cylinder.Position.Y+cylinder.Height,
-				math32.Max(cylinder.Position.Y, box.Position.Y),
-			),
-			closestZ,
-		)
 	} else {
 		// Top/bottom collision
 		centerC := cylinder.Position.Y + cylinder.Height*0.5
 		centerB := box.Position.Y + box.Size.Y*0.5
-
 		normal = rl.NewVector3(0, sign(centerC-centerB), 0)
 		penetration = penetrationY
-
-		y := box.Position.Y
-		if normal.Y > 0 {
-			y = box.Position.Y + box.Size.Y
-		}
-
-		point = rl.NewVector3(closestX, y, closestZ)
 	}
 
 	return Contact{
 		Hit:         true,
-		Point:       point,
 		Normal:      normal,
 		Penetration: penetration,
 	}
@@ -156,14 +129,12 @@ func cylinderVsCylinderContact(a, b CylinderCollider) Contact {
 			normalXZ = rl.NewVector2(1, 0)
 		}
 		normal := rl.NewVector3(normalXZ.X, 0, normalXZ.Y)
-		point := rl.NewVector3((a.Position.X+b.Position.X)*0.5, a.Position.Y, (a.Position.Z+b.Position.Z)*0.5)
-		return Contact{Hit: true, Point: point, Normal: normal, Penetration: penetrationXZ}
+		return Contact{Hit: true, Normal: normal, Penetration: penetrationXZ}
 	}
 
 	if -distanceY1 < -distanceY2 {
 		return Contact{
 			Hit:         true,
-			Point:       rl.NewVector3(a.Position.X, b.Position.Y+b.Height, a.Position.Z),
 			Normal:      rl.NewVector3(0, 1, 0),
 			Penetration: -distanceY1,
 		}
@@ -171,7 +142,6 @@ func cylinderVsCylinderContact(a, b CylinderCollider) Contact {
 
 	return Contact{
 		Hit:         true,
-		Point:       rl.NewVector3(a.Position.X, b.Position.Y, a.Position.Z),
 		Normal:      rl.NewVector3(0, -1, 0),
 		Penetration: -distanceY2,
 	}

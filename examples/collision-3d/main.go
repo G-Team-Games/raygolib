@@ -37,7 +37,7 @@ func NewGame() *Game {
 			Fovy:       45,
 			Projection: rl.CameraPerspective,
 		},
-		box: collision.NewBoxCollider(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+		box: collision.NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
 		cyl: collision.NewCylinderCollider(rl.NewVector3(3, 0, 3), 1.0, 2.0),
 		states: []colliderState{
 			{name: "Box", color: rl.Blue},
@@ -69,7 +69,6 @@ func (g *Game) Draw() {
 	g.drawBox()
 	g.drawCylinder()
 	g.drawPositionPoints()
-	g.drawContact()
 	rl.EndMode3D()
 	g.drawUI()
 }
@@ -174,14 +173,6 @@ func (g *Game) drawCylinder() {
 	rl.DrawCylinderWires(g.cyl.Position, g.cyl.Radius, g.cyl.Radius, g.cyl.Height, 24, g.states[1].color)
 }
 
-func (g *Game) drawContact() {
-	if !g.contact.Hit {
-		return
-	}
-	rl.DrawSphere(g.contact.Point, 0.12, rl.Red)
-	end := rl.Vector3Add(g.contact.Point, rl.Vector3Scale(g.contact.Normal, 1.0))
-	rl.DrawLine3D(g.contact.Point, end, rl.Maroon)
-}
 
 func (g *Game) drawPositionPoints() {
 	boxPos := g.box.GetPosition()
