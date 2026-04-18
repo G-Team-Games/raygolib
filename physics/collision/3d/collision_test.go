@@ -58,8 +58,8 @@ func TestRaycastBox(t *testing.T) {
 	if !hit.Hit {
 		t.Fatalf("expected ray hit box")
 	}
-	if hit.Distance <= 0 {
-		t.Fatalf("expected positive distance, got %f", hit.Distance)
+	if hit.Point == (rl.Vector3{}) {
+		t.Fatalf("expected hit point")
 	}
 }
 

@@ -5,6 +5,8 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
+const epsilon float32 = 1e-7
+
 // Normalizes vector and returns zero for tiny lengths
 func safeNormalize2(v rl.Vector2) rl.Vector2 {
 	if rl.Vector2LengthSqr(v) <= 1e-8 {
@@ -44,4 +46,8 @@ func planeQuad(plane PlaneCollider) (rl.Vector3, rl.Vector3, rl.Vector3, rl.Vect
 			rl.NewVector3(plane.Position.X+plane.Width, plane.Position.Y+plane.Height, plane.Position.Z),
 			rl.NewVector3(plane.Position.X, plane.Position.Y+plane.Height, plane.Position.Z)
 	}
+}
+
+func vec3ToValues(vec rl.Vector3) (float32, float32, float32) {
+	return vec.X, vec.Y, vec.Z
 }

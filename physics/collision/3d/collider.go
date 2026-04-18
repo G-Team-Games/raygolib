@@ -21,6 +21,7 @@ const (
 type Collider interface {
 	Kind() ShapeKind
 	Collide(Collider) Contact
+	DistanceTo(Collider) float32
 	BoundingBox() rl.BoundingBox
 }
 

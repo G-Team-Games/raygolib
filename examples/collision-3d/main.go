@@ -72,10 +72,10 @@ func (g *Game) Update(dt float32) error {
 		getPosFunc = g.cyl.GetPosition
 		setPosFunc = g.cyl.SetPosition
 	case 2:
-		g.contact = g.point.Collide(g.box)
+		g.contact = g.point.Collide(g.cyl)
 		getPosFunc = g.point.GetPosition
 		setPosFunc = g.point.SetPosition
-		println(fmt.Sprintf("Hit: %v, Distance: %v, Penetration: %v", g.contact.Hit, g.contact.Distance, g.contact.Penetration))
+		println(fmt.Sprintf("Hit: %v, Penetration: %v", g.contact.Hit, g.contact.Penetration))
 	}
 
 	col3d.ResolveByMTV(getPosFunc, setPosFunc, g.contact)

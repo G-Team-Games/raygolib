@@ -30,7 +30,7 @@ func (p *PlaneCollider) Kind() ShapeKind {
 func (p *PlaneCollider) Collide(other Collider) Contact {
 	switch c := other.(type) {
 	case *CylinderCollider:
-		contact := cylinderVsPlaneContact(*c, *p)
+		contact := cylinderVsPlaneContact(c, p)
 		contact.Normal = rl.Vector3Negate(contact.Normal)
 		return contact
 	case *PlaneCollider:
@@ -78,6 +78,15 @@ func (p *PlaneCollider) GetPosition() rl.Vector3 {
 // SetPosition sets plane position anchor.
 func (p *PlaneCollider) SetPosition(pos rl.Vector3) {
 	p.Position = pos
+}
+
+func (p *PlaneCollider) DistanceTo(other Collider) float32 {
+	switch c := other.(type) {
+	case *CylinderCollider:
+		return cylinderVsPlaneDistance(*c, *p)
+	default:
+		return 0
+	}
 }
 
 var _ Collider = (*PlaneCollider)(nil)

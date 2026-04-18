@@ -4,36 +4,40 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
-// Raycast returns first hit contact between ray and collider.
-func Raycast(ray rl.Ray, collider Collider) Contact {
+type RayHit struct {
+	Hit    bool
+	Normal rl.Vector3
+	Point  rl.Vector3
+}
+
+func Raycast(ray rl.Ray, collider Collider) RayHit {
 	switch c := collider.(type) {
 	case *BoxCollider:
 		box := c.BoundingBox()
 		hit := rl.GetRayCollisionBox(ray, box)
 		if !hit.Hit {
-			return Contact{}
+			return RayHit{}
 		}
-		return Contact{Hit: true, Normal: hit.Normal, Distance: hit.Distance}
+		return RayHit{Hit: true, Normal: hit.Normal, Point: hit.Point}
 	case *PlaneCollider:
 		p1, p2, p3, p4 := planeQuad(*c)
 		hit := rl.GetRayCollisionQuad(ray, p1, p2, p3, p4)
 		if !hit.Hit {
-			return Contact{}
+			return RayHit{}
 		}
-		return Contact{Hit: true, Normal: hit.Normal, Distance: hit.Distance}
+		return RayHit{Hit: true, Normal: hit.Normal, Point: hit.Point}
 	case *CylinderCollider:
 		return raycastCylinder(ray, *c)
 	default:
-		return Contact{}
+		return RayHit{}
 	}
 }
 
-// raycastCylinder computes ray hit against finite upright cylinder.
-func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) Contact {
+func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) RayHit {
 	hit := rl.GetRayCollisionSphere(ray, cylinder.Position, cylinder.Radius)
 	if hit.Hit {
 		if hit.Point.Y >= cylinder.Position.Y && hit.Point.Y <= cylinder.Position.Y+cylinder.Height {
-			return Contact{Hit: true, Normal: hit.Normal, Distance: hit.Distance}
+			return RayHit{Hit: true, Normal: hit.Normal, Point: hit.Point}
 		}
 	}
 
@@ -50,7 +54,7 @@ func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) Contact {
 	if hitBottom.Hit {
 		delta := rl.Vector2Subtract(rl.NewVector2(hitBottom.Point.X, hitBottom.Point.Z), rl.NewVector2(bottomCenter.X, bottomCenter.Z))
 		if rl.Vector2Length(delta) <= cylinder.Radius {
-			return Contact{Hit: true, Normal: hitBottom.Normal, Distance: hitBottom.Distance}
+			return RayHit{Hit: true, Normal: hitBottom.Normal, Point: hitBottom.Point}
 		}
 	}
 
@@ -64,10 +68,9 @@ func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) Contact {
 	if hitTop.Hit {
 		delta := rl.Vector2Subtract(rl.NewVector2(hitTop.Point.X, hitTop.Point.Z), rl.NewVector2(topCenter.X, topCenter.Z))
 		if rl.Vector2Length(delta) <= cylinder.Radius {
-			return Contact{Hit: true, Normal: hitTop.Normal, Distance: hitTop.Distance}
+			return RayHit{Hit: true, Normal: hitTop.Normal, Point: hitTop.Point}
 		}
 	}
 
-	return Contact{}
+	return RayHit{}
 }
-
