@@ -6,8 +6,13 @@ import (
 )
 
 type Contact struct {
+	// Hit reports whether colliders overlap or touch.
 	Hit         bool
+	// Normal points from collider b toward collider a for a.Collide(b).
+	// It is the direction used by ResolveByMTV to move a out of b.
 	Normal      rl.Vector3
+	// Penetration is overlap depth along Normal and is >= 0 when Hit is true.
+	// For touching cases, penetration is 0.
 	Penetration float32
 }
 

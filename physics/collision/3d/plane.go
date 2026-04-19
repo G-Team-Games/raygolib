@@ -84,8 +84,10 @@ func (p *PlaneCollider) DistanceTo(other Collider) float32 {
 	switch c := other.(type) {
 	case *CylinderCollider:
 		return cylinderVsPlaneDistance(*c, *p)
+	case *BoxCollider:
+		return boxVsPlaneDistance(*c, *p)
 	default:
-		return 0
+		return unsupportedDistance()
 	}
 }
 

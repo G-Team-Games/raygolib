@@ -53,34 +53,36 @@ func (b *BoxCollider) DistanceTo(other Collider) float32 {
 	case *PlaneCollider:
 		return boxVsPlaneDistance(*b, *c)
 	default:
-		return 0
+		return unsupportedDistance()
 	}
 }
 
 func boxVsBoxDistance(a, b BoxCollider) float32 {
-	closestX := math32.Max(a.Position.X, math32.Min(b.Position.X, a.Position.X+a.Size.X))
-	closestY := math32.Max(a.Position.Y, math32.Min(b.Position.Y, a.Position.Y+a.Size.Y))
-	closestZ := math32.Max(a.Position.Z, math32.Min(b.Position.Z, a.Position.Z+a.Size.Z))
+	aMax := a.Max()
+	bMax := b.Max()
 
-	dx := b.Center().X - closestX
-	dy := b.Center().Y - closestY
-	dz := b.Center().Z - closestZ
+	gapX := intervalGap(a.Position.X, aMax.X, b.Position.X, bMax.X)
+	gapY := intervalGap(a.Position.Y, aMax.Y, b.Position.Y, bMax.Y)
+	gapZ := intervalGap(a.Position.Z, aMax.Z, b.Position.Z, bMax.Z)
 
-	distSq := dx*dx + dy*dy + dz*dz
-	return math32.Sqrt(distSq)
+	return math32.Sqrt(gapX*gapX + gapY*gapY + gapZ*gapZ)
 }
 
 func boxVsCylinderDistance(box BoxCollider, cyl CylinderCollider) float32 {
-	closestX := math32.Max(cyl.Position.X-cyl.Radius, math32.Min(cyl.Position.X+cyl.Radius, box.Position.X))
-	closestY := math32.Max(cyl.Position.Y, math32.Min(cyl.Position.Y+cyl.Height, box.Position.Y))
-	closestZ := math32.Max(cyl.Position.Z-cyl.Radius, math32.Min(cyl.Position.Z+cyl.Radius, box.Position.Z))
+	boxMax := box.Max()
 
-	dx := box.Center().X - closestX
-	dy := box.Center().Y - closestY
-	dz := box.Center().Z - closestZ
+	horizontalGap := circleRectGapXZ(
+		cyl.Position.X,
+		cyl.Position.Z,
+		cyl.Radius,
+		box.Position.X,
+		boxMax.X,
+		box.Position.Z,
+		boxMax.Z,
+	)
+	verticalGap := intervalGap(box.Position.Y, boxMax.Y, cyl.Position.Y, cyl.Position.Y+cyl.Height)
 
-	distSq := dx*dx + dy*dy + dz*dz
-	return math32.Sqrt(distSq)
+	return combineOrthogonalGaps(horizontalGap, verticalGap)
 }
 
 func boxVsPointDistance(box BoxCollider, pt PointCollider) float32 {
@@ -97,12 +99,26 @@ func boxVsPointDistance(box BoxCollider, pt PointCollider) float32 {
 }
 
 func boxVsPlaneDistance(box BoxCollider, plane PlaneCollider) float32 {
-	closest := closestPointOnPlane(plane, box.Center())
-	dx := box.Center().X - closest.X
-	dy := box.Center().Y - closest.Y
-	dz := box.Center().Z - closest.Z
-	distSq := dx*dx + dy*dy + dz*dz
-	return math32.Sqrt(distSq)
+	boxMax := box.Max()
+
+	var gapX, gapY, gapZ float32
+
+	switch plane.Axis {
+	case PlaneAxisXPos, PlaneAxisXNeg:
+		gapX = intervalGap(box.Position.X, boxMax.X, plane.Position.X, plane.Position.X)
+		gapY = intervalGap(box.Position.Y, boxMax.Y, plane.Position.Y, plane.Position.Y+plane.Height)
+		gapZ = intervalGap(box.Position.Z, boxMax.Z, plane.Position.Z, plane.Position.Z+plane.Width)
+	case PlaneAxisYPos, PlaneAxisYNeg:
+		gapX = intervalGap(box.Position.X, boxMax.X, plane.Position.X, plane.Position.X+plane.Width)
+		gapY = intervalGap(box.Position.Y, boxMax.Y, plane.Position.Y, plane.Position.Y)
+		gapZ = intervalGap(box.Position.Z, boxMax.Z, plane.Position.Z, plane.Position.Z+plane.Height)
+	case PlaneAxisZPos, PlaneAxisZNeg:
+		gapX = intervalGap(box.Position.X, boxMax.X, plane.Position.X, plane.Position.X+plane.Width)
+		gapY = intervalGap(box.Position.Y, boxMax.Y, plane.Position.Y, plane.Position.Y+plane.Height)
+		gapZ = intervalGap(box.Position.Z, boxMax.Z, plane.Position.Z, plane.Position.Z)
+	}
+
+	return math32.Sqrt(gapX*gapX + gapY*gapY + gapZ*gapZ)
 }
 
 // Returns raylib AABB representation of box

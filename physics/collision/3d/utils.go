@@ -1,6 +1,8 @@
 package col3d
 
 import (
+	"math"
+
 	"github.com/chewxy/math32"
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -17,6 +19,35 @@ func safeNormalize2(v rl.Vector2) rl.Vector2 {
 
 func overlap1D(aMin, aMax, bMin, bMax float32) float32 {
 	return math32.Min(aMax, bMax) - math32.Max(aMin, bMin)
+}
+
+func intervalGap(aMin, aMax, bMin, bMax float32) float32 {
+	if aMax < bMin {
+		return bMin - aMax
+	}
+	if bMax < aMin {
+		return aMin - bMax
+	}
+	return 0
+}
+
+func pointRectDistanceXZ(px, pz, minX, maxX, minZ, maxZ float32) float32 {
+	dx := intervalGap(px, px, minX, maxX)
+	dz := intervalGap(pz, pz, minZ, maxZ)
+	return combineOrthogonalGaps(dx, dz)
+}
+
+func circleRectGapXZ(cx, cz, r, minX, maxX, minZ, maxZ float32) float32 {
+	pointToRect := pointRectDistanceXZ(cx, cz, minX, maxX, minZ, maxZ)
+	return math32.Max(0, pointToRect-r)
+}
+
+func combineOrthogonalGaps(g1, g2 float32) float32 {
+	return math32.Sqrt(g1*g1 + g2*g2)
+}
+
+func unsupportedDistance() float32 {
+	return float32(math.Inf(1))
 }
 
 func sign(x float32) float32 {

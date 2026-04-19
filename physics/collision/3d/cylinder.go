@@ -80,72 +80,66 @@ func (c *CylinderCollider) DistanceTo(other Collider) float32 {
 	case *PlaneCollider:
 		return cylinderVsPlaneDistance(*c, *o)
 	default:
-		return 0
+		return unsupportedDistance()
 	}
 }
 
 func cylinderVsCylinderDistance(a, b CylinderCollider) float32 {
-	dx := a.Center().X - b.Center().X
-	dz := a.Center().Z - b.Center().Z
+	dx := a.Position.X - b.Position.X
+	dz := a.Position.Z - b.Position.Z
 	distXZ := math32.Sqrt(dx*dx + dz*dz)
-	distY1 := a.Position.Y - (b.Position.Y + b.Height)
-	distY2 := b.Position.Y - (a.Position.Y + a.Height)
-	radiusSum := a.Radius + b.Radius
+	horizontalGap := math32.Max(0, distXZ-(a.Radius+b.Radius))
+	verticalGap := intervalGap(a.Position.Y, a.Position.Y+a.Height, b.Position.Y, b.Position.Y+b.Height)
 
-	sideDist := distXZ - radiusSum
-	botDist := -distY1
-	topDist := -distY2
-
-	distSq := sideDist*sideDist + botDist*botDist + topDist*topDist
-	return math32.Sqrt(distSq)
+	return combineOrthogonalGaps(horizontalGap, verticalGap)
 }
 
 func cylinderVsBoxDistance(cyl CylinderCollider, box BoxCollider) float32 {
-	closestX := math32.Max(cyl.Position.X-cyl.Radius, math32.Min(cyl.Position.X+cyl.Radius, box.Position.X))
-	closestY := math32.Max(cyl.Position.Y, math32.Min(cyl.Position.Y+cyl.Height, box.Position.Y))
-	closestZ := math32.Max(cyl.Position.Z-cyl.Radius, math32.Min(cyl.Position.Z+cyl.Radius, box.Position.Z))
+	boxMax := box.Max()
 
-	dx := box.Center().X - closestX
-	dy := box.Center().Y - closestY
-	dz := box.Center().Z - closestZ
+	horizontalGap := circleRectGapXZ(
+		cyl.Position.X,
+		cyl.Position.Z,
+		cyl.Radius,
+		box.Position.X,
+		boxMax.X,
+		box.Position.Z,
+		boxMax.Z,
+	)
+	verticalGap := intervalGap(cyl.Position.Y, cyl.Position.Y+cyl.Height, box.Position.Y, boxMax.Y)
 
-	distSq := dx*dx + dy*dy + dz*dz
-	return math32.Sqrt(distSq)
+	return combineOrthogonalGaps(horizontalGap, verticalGap)
 }
 
 func cylinderVsPointDistance(cyl CylinderCollider, pt PointCollider) float32 {
-	closestX := math32.Max(cyl.Position.X-cyl.Radius, math32.Min(cyl.Position.X+cyl.Radius, pt.Position.X))
-	closestZ := math32.Max(cyl.Position.Z-cyl.Radius, math32.Min(cyl.Position.Z+cyl.Radius, pt.Position.Z))
-	closestY := math32.Max(cyl.Position.Y, math32.Min(cyl.Position.Y+cyl.Height, pt.Position.Y))
+	dx := pt.Position.X - cyl.Position.X
+	dz := pt.Position.Z - cyl.Position.Z
+	distXZ := math32.Sqrt(dx*dx + dz*dz)
+	horizontalGap := math32.Max(0, distXZ-cyl.Radius)
+	verticalGap := intervalGap(pt.Position.Y, pt.Position.Y, cyl.Position.Y, cyl.Position.Y+cyl.Height)
 
-	dx := pt.Position.X - closestX
-	dy := pt.Position.Y - closestY
-	dz := pt.Position.Z - closestZ
-
-	distSq := dx*dx + dy*dy + dz*dz
-	return math32.Sqrt(distSq)
+	return combineOrthogonalGaps(horizontalGap, verticalGap)
 }
 
 func cylinderVsPlaneDistance(cyl CylinderCollider, plane PlaneCollider) float32 {
-	closest := closestPointOnPlane(plane, cyl.Center())
-	dx := cyl.Center().X - closest.X
-	dy := cyl.Center().Y - closest.Y
-	dz := cyl.Center().Z - closest.Z
-	distSq := dx*dx + dy*dy + dz*dz
-	return math32.Sqrt(distSq)
-}
+	var gapX, gapY, gapZ float32
 
-func closestPointOnPlane(plane PlaneCollider, point rl.Vector3) rl.Vector3 {
 	switch plane.Axis {
 	case PlaneAxisXPos, PlaneAxisXNeg:
-		return rl.NewVector3(plane.Position.X, math32.Max(plane.Position.Y, math32.Min(point.Y, plane.Position.Y+plane.Height)), math32.Max(plane.Position.Z, math32.Min(point.Z, plane.Position.Z+plane.Width)))
+		gapX = intervalGap(cyl.Position.X-cyl.Radius, cyl.Position.X+cyl.Radius, plane.Position.X, plane.Position.X)
+		gapY = intervalGap(cyl.Position.Y, cyl.Position.Y+cyl.Height, plane.Position.Y, plane.Position.Y+plane.Height)
+		gapZ = intervalGap(cyl.Position.Z-cyl.Radius, cyl.Position.Z+cyl.Radius, plane.Position.Z, plane.Position.Z+plane.Width)
+	case PlaneAxisYPos, PlaneAxisYNeg:
+		gapX = intervalGap(cyl.Position.X-cyl.Radius, cyl.Position.X+cyl.Radius, plane.Position.X, plane.Position.X+plane.Width)
+		gapY = intervalGap(cyl.Position.Y, cyl.Position.Y+cyl.Height, plane.Position.Y, plane.Position.Y)
+		gapZ = intervalGap(cyl.Position.Z-cyl.Radius, cyl.Position.Z+cyl.Radius, plane.Position.Z, plane.Position.Z+plane.Height)
 	case PlaneAxisZPos, PlaneAxisZNeg:
-		return rl.NewVector3(math32.Max(plane.Position.X, math32.Min(point.X, plane.Position.X+plane.Width)), math32.Max(plane.Position.Y, math32.Min(point.Y, plane.Position.Y+plane.Height)), plane.Position.Z)
-	default:
-		return rl.NewVector3(math32.Max(plane.Position.X, math32.Min(point.X, plane.Position.X+plane.Width)), plane.Position.Y, math32.Max(plane.Position.Z, math32.Min(point.Z, plane.Position.Z+plane.Height)))
+		gapX = intervalGap(cyl.Position.X-cyl.Radius, cyl.Position.X+cyl.Radius, plane.Position.X, plane.Position.X+plane.Width)
+		gapY = intervalGap(cyl.Position.Y, cyl.Position.Y+cyl.Height, plane.Position.Y, plane.Position.Y+plane.Height)
+		gapZ = intervalGap(cyl.Position.Z-cyl.Radius, cyl.Position.Z+cyl.Radius, plane.Position.Z, plane.Position.Z)
 	}
+
+	return math32.Sqrt(gapX*gapX + gapY*gapY + gapZ*gapZ)
 }
-
-
 
 var _ Collider = (*CylinderCollider)(nil)

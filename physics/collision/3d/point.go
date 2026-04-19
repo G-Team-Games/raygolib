@@ -43,7 +43,7 @@ func (p *PointCollider) DistanceTo(other Collider) float32 {
 	case *CylinderCollider:
 		return pointVsCylinderDistance(p, o)
 	default:
-		return 0
+		return unsupportedDistance()
 	}
 }
 
@@ -60,15 +60,13 @@ func pointVsBoxDistance(pt *PointCollider, box *BoxCollider) float32 {
 }
 
 func pointVsCylinderDistance(pt *PointCollider, cyl *CylinderCollider) float32 {
-	closestX := math32.Max(cyl.Position.X-cyl.Radius, math32.Min(cyl.Position.X+cyl.Radius, pt.Position.X))
-	closestZ := math32.Max(cyl.Position.Z-cyl.Radius, math32.Min(cyl.Position.Z+cyl.Radius, pt.Position.Z))
-	closestY := math32.Max(cyl.Position.Y, math32.Min(cyl.Position.Y+cyl.Height, pt.Position.Y))
+	dx := pt.Position.X - cyl.Position.X
+	dz := pt.Position.Z - cyl.Position.Z
+	distXZ := math32.Sqrt(dx*dx + dz*dz)
+	horizontalGap := math32.Max(0, distXZ-cyl.Radius)
+	verticalGap := intervalGap(pt.Position.Y, pt.Position.Y, cyl.Position.Y, cyl.Position.Y+cyl.Height)
 
-	dx := pt.Position.X - closestX
-	dy := pt.Position.Y - closestY
-	dz := pt.Position.Z - closestZ
-
-	return math32.Sqrt(dx*dx + dy*dy + dz*dz)
+	return combineOrthogonalGaps(horizontalGap, verticalGap)
 }
 
 func (p *PointCollider) GetPosition() rl.Vector3 {

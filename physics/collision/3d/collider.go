@@ -17,7 +17,16 @@ const (
 	ShapePoint
 )
 
-// Pure collider interface
+// Collider defines shape operations used by the narrow phase.
+//
+// Package-wide contracts:
+//   - For a.Collide(b), returned contact normal points from b toward a
+//     (direction to move a out of b).
+//   - For a hit contact, penetration is always >= 0.
+//   - Touching counts as hit with penetration == 0.
+//   - DistanceTo returns the minimum Euclidean separation between volumes,
+//     and returns 0 when touching or overlapping.
+//   - Unsupported DistanceTo pairs return +Inf (never a silent zero).
 type Collider interface {
 	Kind() ShapeKind
 	Collide(Collider) Contact
@@ -25,12 +34,18 @@ type Collider interface {
 	BoundingBox() rl.BoundingBox
 }
 
-// Helper function to dispatch collision check from a to b
+// Collide dispatches collision from a to b using a.Collide(b).
+//
+// The same contact contracts as Collider.Collide apply.
 func Collide(a, b Collider) Contact {
 	return a.Collide(b)
 }
 
-// Applies minimum translation vector to object position.
+// ResolveByMTV applies the contact minimum translation vector to a position.
+//
+// It assumes hit.Normal and hit.Penetration follow the contact contract:
+// normal points in the direction that moves the resolved object out of overlap,
+// and penetration is non-negative.
 func ResolveByMTV(getPosition func() rl.Vector3, setPosition func(rl.Vector3), hit Contact) {
 	if !hit.Hit || hit.Penetration <= 0 {
 		return
