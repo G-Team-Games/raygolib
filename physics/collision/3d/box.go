@@ -34,6 +34,8 @@ func (b *BoxCollider) Collide(other Collider) Contact {
 		return contact
 	case *PointCollider:
 		return boxVsPointContact(b, o)
+	case *PlaneCollider:
+		return boxVsPlaneContact(b, o)
 	default:
 		return Contact{}
 	}

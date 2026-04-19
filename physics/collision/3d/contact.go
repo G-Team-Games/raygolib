@@ -7,10 +7,10 @@ import (
 
 type Contact struct {
 	// Hit reports whether colliders overlap or touch.
-	Hit         bool
+	Hit bool
 	// Normal points from collider b toward collider a for a.Collide(b).
 	// It is the direction used by ResolveByMTV to move a out of b.
-	Normal      rl.Vector3
+	Normal rl.Vector3
 	// Penetration is overlap depth along Normal and is >= 0 when Hit is true.
 	// For touching cases, penetration is 0.
 	Penetration float32
@@ -141,6 +141,47 @@ func cylinderVsCylinderContact(a, b *CylinderCollider) Contact {
 	}
 
 	return Contact{Hit: true, Normal: normalSide, Penetration: penSide}
+}
+
+// boxVsPlaneContact computes contact between box and finite plane.
+func boxVsPlaneContact(box *BoxCollider, plane *PlaneCollider) Contact {
+	bMin := box.Min()
+	bMax := box.Max()
+	pBox := plane.BoundingBox()
+
+	px := overlap1D(bMin.X, bMax.X, pBox.Min.X, pBox.Max.X)
+	py := overlap1D(bMin.Y, bMax.Y, pBox.Min.Y, pBox.Max.Y)
+	pz := overlap1D(bMin.Z, bMax.Z, pBox.Min.Z, pBox.Max.Z)
+
+	if px < 0 || py < 0 || pz < 0 {
+		return Contact{}
+	}
+
+	var normal rl.Vector3
+	var pen float32
+
+	switch plane.Axis {
+	case PlaneAxisXPos, PlaneAxisXNeg:
+		pen = px
+		normal = rl.NewVector3(1, 0, 0)
+		if box.Center().X < pBox.Min.X {
+			normal.X = -1
+		}
+	case PlaneAxisYPos, PlaneAxisYNeg:
+		pen = py
+		normal = rl.NewVector3(0, 1, 0)
+		if box.Center().Y < pBox.Min.Y {
+			normal.Y = -1
+		}
+	case PlaneAxisZPos, PlaneAxisZNeg:
+		pen = pz
+		normal = rl.NewVector3(0, 0, 1)
+		if box.Center().Z < pBox.Min.Z {
+			normal.Z = -1
+		}
+	}
+
+	return Contact{Hit: true, Normal: normal, Penetration: pen}
 }
 
 func boxVsPointContact(box *BoxCollider, pt *PointCollider) Contact {
