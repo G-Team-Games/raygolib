@@ -322,3 +322,49 @@ func cylinderVsPlaneContact(cylinder *CylinderCollider, plane *PlaneCollider) Co
 
 	return Contact{}
 }
+
+func pointVsPlaneContact(pt *PointCollider, plane *PlaneCollider) Contact {
+	pBox := plane.BoundingBox()
+	
+	px := overlap1D(pt.Position.X, pt.Position.X, pBox.Min.X, pBox.Max.X)
+	py := overlap1D(pt.Position.Y, pt.Position.Y, pBox.Min.Y, pBox.Max.Y)
+	pz := overlap1D(pt.Position.Z, pt.Position.Z, pBox.Min.Z, pBox.Max.Z)
+
+	if px < 0 || py < 0 || pz < 0 {
+		return Contact{}
+	}
+
+	var normal rl.Vector3
+	var pen float32
+
+	switch plane.Axis {
+	case PlaneAxisXPos, PlaneAxisXNeg:
+		pen = px
+		normal = rl.NewVector3(1, 0, 0)
+		if pt.Position.X < pBox.Min.X {
+			normal.X = -1
+		}
+	case PlaneAxisYPos, PlaneAxisYNeg:
+		pen = py
+		normal = rl.NewVector3(0, 1, 0)
+		if pt.Position.Y < pBox.Min.Y {
+			normal.Y = -1
+		}
+	case PlaneAxisZPos, PlaneAxisZNeg:
+		pen = pz
+		normal = rl.NewVector3(0, 0, 1)
+		if pt.Position.Z < pBox.Min.Z {
+			normal.Z = -1
+		}
+	}
+
+	return Contact{Hit: true, Normal: normal, Penetration: pen}
+}
+
+func pointVsPointContact(a, b *PointCollider) Contact {
+	if a.Position.X == b.Position.X && a.Position.Y == b.Position.Y && a.Position.Z == b.Position.Z {
+		return Contact{Hit: true, Normal: rl.NewVector3(0, 1, 0), Penetration: 0}
+	}
+	return Contact{}
+}
+

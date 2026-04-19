@@ -117,3 +117,33 @@ func pointVsCylinderDistance(pt *PointCollider, cyl *CylinderCollider) float32 {
 		cyl.Height,
 	)
 }
+
+func pointVsPlaneDistance(pt *PointCollider, plane *PlaneCollider) float32 {
+	return aabbDistanceToPlaneRect(
+		pt.Position.X,
+		pt.Position.X,
+		pt.Position.Y,
+		pt.Position.Y,
+		pt.Position.Z,
+		pt.Position.Z,
+		plane,
+	)
+}
+
+func pointVsPointDistance(a, b *PointCollider) float32 {
+	dx := a.Position.X - b.Position.X
+	dy := a.Position.Y - b.Position.Y
+	dz := a.Position.Z - b.Position.Z
+	return math32.Sqrt(dx*dx + dy*dy + dz*dz)
+}
+
+func planeVsPlaneDistance(a, b *PlaneCollider) float32 {
+	aBox := a.BoundingBox()
+	return aabbDistanceToPlaneRect(
+		aBox.Min.X, aBox.Max.X,
+		aBox.Min.Y, aBox.Max.Y,
+		aBox.Min.Z, aBox.Max.Z,
+		b,
+	)
+}
+

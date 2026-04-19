@@ -39,7 +39,7 @@ func NewGame() *Game {
 			Projection: rl.CameraPerspective,
 		},
 		box:   col3d.NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
-		cyl:   col3d.NewCylinderCollider(rl.NewVector3(3, 0, 3), 1.0, 2.0),
+		cyl:   col3d.NewCylinderColliderV(rl.NewVector3(3, 0, 3), 1.0, 2.0),
 		point: col3d.NewPointXYZ(4, 4, 4),
 		states: []colliderState{
 			{name: "Box", color: rl.Blue},
@@ -64,7 +64,7 @@ func (g *Game) Update(dt float32) error {
 
 	switch g.active {
 	case 0:
-		g.contact = g.box.Collide(g.cyl)
+		g.contact = g.box.Collide(g.point)
 		getPosFunc = g.box.GetPosition
 		setPosFunc = g.box.SetPosition
 	case 1:
@@ -72,7 +72,7 @@ func (g *Game) Update(dt float32) error {
 		getPosFunc = g.cyl.GetPosition
 		setPosFunc = g.cyl.SetPosition
 	case 2:
-		g.contact = g.point.Collide(g.cyl)
+		g.contact = g.point.Collide(g.box)
 		getPosFunc = g.point.GetPosition
 		setPosFunc = g.point.SetPosition
 		println(fmt.Sprintf("Hit: %v, Penetration: %v", g.contact.Hit, g.contact.Penetration))

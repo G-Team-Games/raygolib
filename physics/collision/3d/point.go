@@ -24,6 +24,12 @@ func (p *PointCollider) Collide(other Collider) Contact {
 		return boxVsPointContact(o, p)
 	case *CylinderCollider:
 		return cylinderVsPointContact(o, p)
+	case *PlaneCollider:
+		contact := pointVsPlaneContact(p, o)
+		contact.Normal = rl.Vector3Negate(contact.Normal)
+		return contact
+	case *PointCollider:
+		return pointVsPointContact(p, o)
 	default:
 		return Contact{}
 	}
@@ -39,6 +45,10 @@ func (p *PointCollider) DistanceTo(other Collider) float32 {
 		return pointVsBoxDistance(p, o)
 	case *CylinderCollider:
 		return pointVsCylinderDistance(p, o)
+	case *PlaneCollider:
+		return pointVsPlaneDistance(p, o)
+	case *PointCollider:
+		return pointVsPointDistance(p, o)
 	default:
 		return infiniteDistance()
 	}

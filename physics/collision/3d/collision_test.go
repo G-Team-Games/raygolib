@@ -210,18 +210,20 @@ func TestDistance_SymmetryForSupportedPairs(t *testing.T) {
 	}
 }
 
+type dummyCollider struct{}
+
+func (d *dummyCollider) Kind() ShapeKind { return 255 }
+func (d *dummyCollider) Collide(other Collider) Contact { return Contact{} }
+func (d *dummyCollider) DistanceTo(other Collider) float32 { return float32(math.Inf(1)) }
+func (d *dummyCollider) BoundingBox() rl.BoundingBox { return rl.BoundingBox{} }
+
 func TestDistance_UnsupportedPairReturnsInf(t *testing.T) {
 	plane := NewPlaneCollider(rl.NewVector3(0, 0, 0), 2, 2, PlaneAxisXPos)
-	point := NewPointV(rl.NewVector3(0, 0, 0))
+	dummy := &dummyCollider{}
 
-	d := plane.DistanceTo(point)
+	d := plane.DistanceTo(dummy)
 	if !math.IsInf(float64(d), 1) {
-		t.Fatalf("expected +Inf for unsupported distance pair, got %f", d)
-	}
-
-	d = point.DistanceTo(plane)
-	if !math.IsInf(float64(d), 1) {
-		t.Fatalf("expected +Inf for unsupported distance pair, got %f", d)
+		t.Errorf("expected +Inf for unsupported distance pair, got %f", d)
 	}
 }
 

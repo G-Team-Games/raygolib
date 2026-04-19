@@ -33,7 +33,9 @@ func (b *BoxCollider) Collide(other Collider) Contact {
 		contact.Normal = rl.Vector3Negate(contact.Normal)
 		return contact
 	case *PointCollider:
-		return boxVsPointContact(b, o)
+		contact := boxVsPointContact(b, o)
+		contact.Normal = rl.Vector3Negate(contact.Normal)
+		return contact
 	case *PlaneCollider:
 		return boxVsPlaneContact(b, o)
 	default:
