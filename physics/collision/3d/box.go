@@ -46,13 +46,13 @@ func (b *BoxCollider) Collide(other Collider) Contact {
 func (b *BoxCollider) DistanceTo(other Collider) float32 {
 	switch c := other.(type) {
 	case *BoxCollider:
-		return boxVsBoxDistance(*b, *c)
+		return boxVsBoxDistance(b, c)
 	case *CylinderCollider:
-		return boxVsCylinderDistance(*b, *c)
+		return boxVsCylinderDistance(b, c)
 	case *PointCollider:
-		return boxVsPointDistance(*b, *c)
+		return boxVsPointDistance(b, c)
 	case *PlaneCollider:
-		return boxVsPlaneDistance(*b, *c)
+		return boxVsPlaneDistance(b, c)
 	default:
 		return infiniteDistance()
 	}

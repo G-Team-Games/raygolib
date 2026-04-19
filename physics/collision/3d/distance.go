@@ -2,7 +2,7 @@ package col3d
 
 import "github.com/chewxy/math32"
 
-func boxVsBoxDistance(a, b BoxCollider) float32 {
+func boxVsBoxDistance(a, b *BoxCollider) float32 {
 	aMax := a.Max()
 	bMax := b.Max()
 
@@ -13,7 +13,7 @@ func boxVsBoxDistance(a, b BoxCollider) float32 {
 	return math32.Sqrt(gapX*gapX + gapY*gapY + gapZ*gapZ)
 }
 
-func boxVsCylinderDistance(box BoxCollider, cyl CylinderCollider) float32 {
+func boxVsCylinderDistance(box *BoxCollider, cyl *CylinderCollider) float32 {
 	boxMax := box.Max()
 
 	horizontalGap := circleRectGapXZ(
@@ -30,7 +30,7 @@ func boxVsCylinderDistance(box BoxCollider, cyl CylinderCollider) float32 {
 	return math32.Sqrt(horizontalGap*horizontalGap + verticalGap*verticalGap)
 }
 
-func boxVsPointDistance(box BoxCollider, pt PointCollider) float32 {
+func boxVsPointDistance(box *BoxCollider, pt *PointCollider) float32 {
 	boxMax := box.Max()
 	return pointAABBDistance3D(
 		pt.Position.X,
@@ -45,7 +45,7 @@ func boxVsPointDistance(box BoxCollider, pt PointCollider) float32 {
 	)
 }
 
-func boxVsPlaneDistance(box BoxCollider, plane PlaneCollider) float32 {
+func boxVsPlaneDistance(box *BoxCollider, plane *PlaneCollider) float32 {
 	boxMax := box.Max()
 	return aabbDistanceToPlaneRect(
 		box.Position.X,
@@ -59,7 +59,7 @@ func boxVsPlaneDistance(box BoxCollider, plane PlaneCollider) float32 {
 }
 
 
-func cylinderVsCylinderDistance(a, b CylinderCollider) float32 {
+func cylinderVsCylinderDistance(a, b *CylinderCollider) float32 {
 	dx := a.Position.X - b.Position.X
 	dz := a.Position.Z - b.Position.Z
 	distXZ := math32.Sqrt(dx*dx + dz*dz)
@@ -69,15 +69,15 @@ func cylinderVsCylinderDistance(a, b CylinderCollider) float32 {
 	return math32.Sqrt(horizontalGap*horizontalGap + verticalGap*verticalGap)
 }
 
-func cylinderVsBoxDistance(cyl CylinderCollider, box BoxCollider) float32 {
+func cylinderVsBoxDistance(cyl *CylinderCollider, box *BoxCollider) float32 {
 	return boxVsCylinderDistance(box, cyl)
 }
 
-func cylinderVsPointDistance(cyl CylinderCollider, pt PointCollider) float32 {
-	return pointVsCylinderDistance(&pt, &cyl)
+func cylinderVsPointDistance(cyl *CylinderCollider, pt *PointCollider) float32 {
+	return pointVsCylinderDistance(pt, cyl)
 }
 
-func cylinderVsPlaneDistance(cyl CylinderCollider, plane PlaneCollider) float32 {
+func cylinderVsPlaneDistance(cyl *CylinderCollider, plane *PlaneCollider) float32 {
 	return aabbDistanceToPlaneRect(
 		cyl.Position.X-cyl.Radius,
 		cyl.Position.X+cyl.Radius,

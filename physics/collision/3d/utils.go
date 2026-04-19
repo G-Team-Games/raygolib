@@ -59,7 +59,7 @@ func pointCylinderDistance(px, py, pz, cx, baseY, cz, radius, height float32) fl
 }
 
 
-func aabbDistanceToPlaneRect(minX, maxX, minY, maxY, minZ, maxZ float32, plane PlaneCollider) float32 {
+func aabbDistanceToPlaneRect(minX, maxX, minY, maxY, minZ, maxZ float32, plane *PlaneCollider) float32 {
 	var gapX, gapY, gapZ float32
 
 	switch plane.Axis {

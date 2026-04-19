@@ -83,9 +83,9 @@ func (p *PlaneCollider) SetPosition(pos rl.Vector3) {
 func (p *PlaneCollider) DistanceTo(other Collider) float32 {
 	switch c := other.(type) {
 	case *CylinderCollider:
-		return cylinderVsPlaneDistance(*c, *p)
+		return cylinderVsPlaneDistance(c, p)
 	case *BoxCollider:
-		return boxVsPlaneDistance(*c, *p)
+		return boxVsPlaneDistance(c, p)
 	default:
 		return infiniteDistance()
 	}
