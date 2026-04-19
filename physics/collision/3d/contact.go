@@ -143,45 +143,14 @@ func cylinderVsCylinderContact(a, b *CylinderCollider) Contact {
 	return Contact{Hit: true, Normal: normalSide, Penetration: penSide}
 }
 
-// boxVsPlaneContact computes contact between box and finite plane.
+func planeToBox(plane *PlaneCollider) *BoxCollider {
+	box := plane.BoundingBox()
+	size := rl.Vector3Subtract(box.Max, box.Min)
+	min := box.Min
+	return NewBoxColliderV(min, size)
+}
 func boxVsPlaneContact(box *BoxCollider, plane *PlaneCollider) Contact {
-	bMin := box.Min()
-	bMax := box.Max()
-	pBox := plane.BoundingBox()
-
-	px := overlap1D(bMin.X, bMax.X, pBox.Min.X, pBox.Max.X)
-	py := overlap1D(bMin.Y, bMax.Y, pBox.Min.Y, pBox.Max.Y)
-	pz := overlap1D(bMin.Z, bMax.Z, pBox.Min.Z, pBox.Max.Z)
-
-	if px < 0 || py < 0 || pz < 0 {
-		return Contact{}
-	}
-
-	var normal rl.Vector3
-	var pen float32
-
-	switch plane.Axis {
-	case PlaneAxisXPos, PlaneAxisXNeg:
-		pen = px
-		normal = rl.NewVector3(1, 0, 0)
-		if box.Center().X < pBox.Min.X {
-			normal.X = -1
-		}
-	case PlaneAxisYPos, PlaneAxisYNeg:
-		pen = py
-		normal = rl.NewVector3(0, 1, 0)
-		if box.Center().Y < pBox.Min.Y {
-			normal.Y = -1
-		}
-	case PlaneAxisZPos, PlaneAxisZNeg:
-		pen = pz
-		normal = rl.NewVector3(0, 0, 1)
-		if box.Center().Z < pBox.Min.Z {
-			normal.Z = -1
-		}
-	}
-
-	return Contact{Hit: true, Normal: normal, Penetration: pen}
+	return boxVsBoxContact(box, planeToBox(plane))
 }
 
 func boxVsPointContact(box *BoxCollider, pt *PointCollider) Contact {
@@ -253,112 +222,13 @@ func cylinderVsPointContact(cylinder *CylinderCollider, pt *PointCollider) Conta
 
 // cylinderVsPlaneContact computes contact between cylinder and finite plane.
 func cylinderVsPlaneContact(cylinder *CylinderCollider, plane *PlaneCollider) Contact {
-	switch plane.Axis {
-	case PlaneAxisXPos, PlaneAxisXNeg, PlaneAxisZPos, PlaneAxisZNeg:
-		var difference rl.Vector2
-		if plane.Axis == PlaneAxisZPos || plane.Axis == PlaneAxisZNeg {
-			difference = rl.Vector2Subtract(
-				rl.NewVector2(cylinder.Position.X, cylinder.Position.Z),
-				rl.NewVector2(
-					math32.Min(plane.Position.X+plane.Width, math32.Max(plane.Position.X, cylinder.Position.X)),
-					plane.Position.Z,
-				),
-			)
-		} else {
-			difference = rl.Vector2Subtract(
-				rl.NewVector2(cylinder.Position.X, cylinder.Position.Z),
-				rl.NewVector2(
-					plane.Position.X,
-					math32.Min(plane.Position.Z+plane.Width, math32.Max(plane.Position.Z, cylinder.Position.Z)),
-				),
-			)
-		}
-
-		distanceXZ := rl.Vector2Length(difference)
-		penetrationXZ := cylinder.Radius - distanceXZ
-		distanceY1 := cylinder.Position.Y - (plane.Position.Y + plane.Height)
-		distanceY2 := plane.Position.Y - (cylinder.Position.Y + cylinder.Height)
-
-		if penetrationXZ < 0 || distanceY1 > 0 || distanceY2 > 0 {
-			return Contact{}
-		}
-
-		normalXZ := safeNormalize2(difference)
-		if rl.Vector2Length(normalXZ) == 0 {
-			normal3 := plane.Axis.Normal()
-			normalXZ = rl.NewVector2(-normal3.X, -normal3.Z)
-		}
-		normal := rl.NewVector3(normalXZ.X, 0, normalXZ.Y)
-		return Contact{Hit: true, Normal: normal, Penetration: penetrationXZ}
-
-	case PlaneAxisYPos, PlaneAxisYNeg:
-		difference := rl.Vector2Subtract(
-			rl.NewVector2(cylinder.Position.X, cylinder.Position.Z),
-			rl.NewVector2(
-				math32.Min(plane.Position.X+plane.Width, math32.Max(plane.Position.X, cylinder.Position.X)),
-				math32.Min(plane.Position.Z+plane.Height, math32.Max(plane.Position.Z, cylinder.Position.Z)),
-			),
-		)
-		distanceXZ := rl.Vector2Length(difference)
-		penetrationXZ := cylinder.Radius - distanceXZ
-		planeY := plane.Position.Y
-		cylMinY := cylinder.Position.Y
-		cylMaxY := cylinder.Position.Y + cylinder.Height
-
-		if penetrationXZ < 0 || planeY < cylMinY || planeY > cylMaxY {
-			return Contact{}
-		}
-
-		moveUp := planeY - cylMinY
-		moveDown := cylMaxY - planeY
-
-		// Deterministic fallback for exact mid-plane ties: prefer +Y.
-		if moveUp <= moveDown {
-			return Contact{Hit: true, Normal: rl.NewVector3(0, 1, 0), Penetration: moveUp}
-		}
-
-		return Contact{Hit: true, Normal: rl.NewVector3(0, -1, 0), Penetration: moveDown}
-	}
-
-	return Contact{}
+	return cylinderVsBoxContact(cylinder, planeToBox(plane))
 }
 
 func pointVsPlaneContact(pt *PointCollider, plane *PlaneCollider) Contact {
-	pBox := plane.BoundingBox()
-	
-	px := overlap1D(pt.Position.X, pt.Position.X, pBox.Min.X, pBox.Max.X)
-	py := overlap1D(pt.Position.Y, pt.Position.Y, pBox.Min.Y, pBox.Max.Y)
-	pz := overlap1D(pt.Position.Z, pt.Position.Z, pBox.Min.Z, pBox.Max.Z)
-
-	if px < 0 || py < 0 || pz < 0 {
-		return Contact{}
-	}
-
-	var normal rl.Vector3
-	var pen float32
-
-	switch plane.Axis {
-	case PlaneAxisXPos, PlaneAxisXNeg:
-		pen = px
-		normal = rl.NewVector3(1, 0, 0)
-		if pt.Position.X < pBox.Min.X {
-			normal.X = -1
-		}
-	case PlaneAxisYPos, PlaneAxisYNeg:
-		pen = py
-		normal = rl.NewVector3(0, 1, 0)
-		if pt.Position.Y < pBox.Min.Y {
-			normal.Y = -1
-		}
-	case PlaneAxisZPos, PlaneAxisZNeg:
-		pen = pz
-		normal = rl.NewVector3(0, 0, 1)
-		if pt.Position.Z < pBox.Min.Z {
-			normal.Z = -1
-		}
-	}
-
-	return Contact{Hit: true, Normal: normal, Penetration: pen}
+	// Give the point a 0.2 bounds to catch discrete plane crossing
+	ptBox := NewBoxColliderXYZ(rl.Vector3Subtract(pt.Position, rl.NewVector3(0.1, 0.1, 0.1)), 0.2, 0.2, 0.2)
+	return boxVsBoxContact(ptBox, planeToBox(plane))
 }
 
 func pointVsPointContact(a, b *PointCollider) Contact {

@@ -18,7 +18,10 @@ func safeNormalize2(v rl.Vector2) rl.Vector2 {
 }
 
 func overlap1D(aMin, aMax, bMin, bMax float32) float32 {
-	return math32.Min(aMax, bMax) - math32.Max(aMin, bMin)
+	if aMax < bMin || bMax < aMin {
+		return -1
+	}
+	return math32.Min(aMax-bMin, bMax-aMin)
 }
 
 func intervalGap(aMin, aMax, bMin, bMax float32) float32 {

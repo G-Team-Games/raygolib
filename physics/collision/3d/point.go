@@ -26,7 +26,6 @@ func (p *PointCollider) Collide(other Collider) Contact {
 		return cylinderVsPointContact(o, p)
 	case *PlaneCollider:
 		contact := pointVsPlaneContact(p, o)
-		contact.Normal = rl.Vector3Negate(contact.Normal)
 		return contact
 	case *PointCollider:
 		return pointVsPointContact(p, o)
