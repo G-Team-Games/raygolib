@@ -34,11 +34,37 @@ type Collider interface {
 	BoundingBox() rl.BoundingBox
 }
 
-// Collide dispatches collision from a to b using a.Collide(b).
+func unorderedCollideCanonical(a, b Collider) Contact {
+	hit := a.Collide(b)
+	if hit.Hit {
+		return hit
+	}
+
+	hit = b.Collide(a)
+	if hit.Hit {
+		hit.Normal = rl.Vector3Negate(hit.Normal)
+	}
+
+	return hit
+}
+
+// Collide dispatches collision in an order-safe way.
 //
-// The same contact contracts as Collider.Collide apply.
+// For each unordered pair, it uses a stable canonical order based on ShapeKind,
+// then reorients the normal to match the requested a->b query.
+// If only one direction is implemented by shape methods, this helper still
+// returns a valid contact when available.
 func Collide(a, b Collider) Contact {
-	return a.Collide(b)
+	if a.Kind() <= b.Kind() {
+		return unorderedCollideCanonical(a, b)
+	}
+
+	hit := unorderedCollideCanonical(b, a)
+	if hit.Hit {
+		hit.Normal = rl.Vector3Negate(hit.Normal)
+	}
+
+	return hit
 }
 
 // ResolveByMTV applies the contact minimum translation vector to a position.

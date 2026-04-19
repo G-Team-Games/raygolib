@@ -309,3 +309,63 @@ func TestCylinderVsHorizontalPlane_MinimalTranslationDirection(t *testing.T) {
 		t.Fatalf("expected +Y penetration of 0.2, got %f", hit.Penetration)
 	}
 }
+
+func TestCollide_OrderIndependence_AllSupportedUnorderedPairs(t *testing.T) {
+	tests := []struct {
+		name string
+		a    Collider
+		b    Collider
+	}{
+		{
+			name: "box-box",
+			a:    NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+			b:    NewBoxColliderV(rl.NewVector3(1, 0, 0), rl.NewVector3(2, 2, 2)),
+		},
+		{
+			name: "box-cylinder",
+			a:    NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+			b:    NewCylinderCollider(rl.NewVector3(1.4, 0, 1), 0.75, 2),
+		},
+		{
+			name: "box-point",
+			a:    NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+			b:    NewPointV(rl.NewVector3(1, 1, 1)),
+		},
+		{
+			name: "cylinder-cylinder",
+			a:    NewCylinderCollider(rl.NewVector3(0, 0, 0), 1, 2),
+			b:    NewCylinderCollider(rl.NewVector3(1.5, 0, 0), 1, 2),
+		},
+		{
+			name: "cylinder-point",
+			a:    NewCylinderCollider(rl.NewVector3(0, 0, 0), 1, 2),
+			b:    NewPointV(rl.NewVector3(0.5, 1, 0)),
+		},
+		{
+			name: "cylinder-plane",
+			a:    NewCylinderCollider(rl.NewVector3(1, 0, 1), 0.5, 2),
+			b:    NewPlaneCollider(rl.NewVector3(0, 1.8, 0), 3, 3, PlaneAxisYPos),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ab := Collide(tc.a, tc.b)
+			ba := Collide(tc.b, tc.a)
+
+			if !ab.Hit || !ba.Hit {
+				t.Fatalf("expected hits in both orders, got ab=%v ba=%v", ab.Hit, ba.Hit)
+			}
+
+			if math.Abs(float64(ab.Penetration-ba.Penetration)) > 1e-5 {
+				t.Fatalf("expected equal penetration, got %f vs %f", ab.Penetration, ba.Penetration)
+			}
+
+			if math.Abs(float64(ab.Normal.X+ba.Normal.X)) > 1e-5 ||
+				math.Abs(float64(ab.Normal.Y+ba.Normal.Y)) > 1e-5 ||
+				math.Abs(float64(ab.Normal.Z+ba.Normal.Z)) > 1e-5 {
+				t.Fatalf("expected opposite normals, got ab=%+v ba=%+v", ab.Normal, ba.Normal)
+			}
+		})
+	}
+}
