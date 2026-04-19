@@ -20,6 +20,7 @@ type Game struct {
 	box     *col3d.BoxCollider
 	cyl     *col3d.CylinderCollider
 	point   *col3d.PointCollider
+	plane   *col3d.PlaneCollider
 	contact col3d.Contact
 	states  []colliderState
 }
@@ -38,15 +39,25 @@ func NewGame() *Game {
 			Fovy:       45,
 			Projection: rl.CameraPerspective,
 		},
-		box:   col3d.NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
-		cyl:   col3d.NewCylinderColliderV(rl.NewVector3(3, 0, 3), 1.0, 2.0),
-		point: col3d.NewPointXYZ(4, 4, 4),
+		box:   col3d.NewBoxColliderV(rl.NewVector3(-6, 0, 0), rl.NewVector3(2, 2, 2)),
+		cyl:   col3d.NewCylinderColliderV(rl.NewVector3(-2, 0, 1), 1.0, 2.0),
+		point: col3d.NewPointXYZ(2, 1, 1),
+		plane: col3d.NewPlaneCollider(rl.NewVector3(6, 0, 0), 4, 4, col3d.PlaneAxisXPos),
 		states: []colliderState{
 			{name: "Box", color: rl.Blue},
 			{name: "Cylinder", color: rl.Green},
 			{name: "Point", color: rl.Red},
+			{name: "Plane", color: rl.Purple},
 		},
 	}
+}
+
+func (g *Game) colliders() []col3d.Collider {
+	return []col3d.Collider{g.box, g.cyl, g.point, g.plane}
+}
+
+func (g *Game) activeCollider() col3d.Collider {
+	return g.colliders()[g.active]
 }
 
 func (g *Game) Update(dt float32) error {
@@ -59,26 +70,51 @@ func (g *Game) Update(dt float32) error {
 	g.moveActive(dt)
 
 	g.contact = col3d.Contact{}
-	var getPosFunc func() rl.Vector3
-	var setPosFunc func(rl.Vector3)
+	
+	activeCol := g.activeCollider()
 
-	switch g.active {
-	case 0:
-		g.contact = g.box.Collide(g.point)
-		getPosFunc = g.box.GetPosition
-		setPosFunc = g.box.SetPosition
-	case 1:
-		g.contact = g.cyl.Collide(g.box)
-		getPosFunc = g.cyl.GetPosition
-		setPosFunc = g.cyl.SetPosition
-	case 2:
-		g.contact = g.point.Collide(g.box)
-		getPosFunc = g.point.GetPosition
-		setPosFunc = g.point.SetPosition
-		println(fmt.Sprintf("Hit: %v, Penetration: %v", g.contact.Hit, g.contact.Penetration))
+	// Multi-iteration collision solver to handle overlapping push-backs
+	// If active is pushed out of Box into Cylinder, next iter pushes out of Cylinder
+	for range 4 {
+		hitThisIter := false
+		
+		for i, other := range g.colliders() {
+			if i == g.active {
+				continue // Skip self
+			}
+
+			// Compute hit from active towards other
+			contact := activeCol.Collide(other)
+			
+			if contact.Hit {
+				g.contact = contact
+				hitThisIter = true
+				
+				// type assertion since Collider interface doesn't define Get/SetPosition directly
+				var getPos func() rl.Vector3
+				var setPos func(rl.Vector3)
+				
+				switch c := activeCol.(type) {
+				case *col3d.BoxCollider:
+					getPos, setPos = c.GetPosition, c.SetPosition
+				case *col3d.CylinderCollider:
+					getPos, setPos = c.GetPosition, c.SetPosition
+				case *col3d.PointCollider:
+					getPos, setPos = c.GetPosition, c.SetPosition
+				case *col3d.PlaneCollider:
+					getPos, setPos = c.GetPosition, c.SetPosition
+				}
+
+				// Resolve collision using MTV (Minimum Translation Vector)
+				col3d.ResolveByMTV(getPos, setPos, contact)
+			}
+		}
+		
+		// If no collisions found in this pass, we are fully resolved
+		if !hitThisIter {
+			break
+		}
 	}
-
-	col3d.ResolveByMTV(getPosFunc, setPosFunc, g.contact)
 
 	return nil
 }
@@ -89,6 +125,7 @@ func (g *Game) Draw() {
 	rl.DrawGrid(20, 1)
 	g.drawBox()
 	g.drawCylinder()
+	g.drawPlane()
 	g.drawPositionPoints()
 	rl.EndMode3D()
 	g.drawUI()
@@ -174,6 +211,8 @@ func (g *Game) moveActive(dt float32) {
 		g.cyl.SetPosition(rl.Vector3Add(g.cyl.GetPosition(), move))
 	case 2:
 		g.point.SetPosition(rl.Vector3Add(g.point.GetPosition(), move))
+	case 3:
+		g.plane.SetPosition(rl.Vector3Add(g.plane.GetPosition(), move))
 	}
 
 }
@@ -196,43 +235,89 @@ func (g *Game) drawCylinder() {
 	rl.DrawCylinderWires(g.cyl.Position, g.cyl.Radius, g.cyl.Radius, g.cyl.Height, 24, g.states[1].color)
 }
 
+func (g *Game) drawPlane() {
+	fill := rl.Fade(g.states[3].color, 0.30)
+	if g.active == 3 {
+		fill = rl.Fade(rl.Orange, 0.40)
+	}
+
+	// Plane is a 2D quad in 3D space
+	// We extract its BoundingBox corners for drawing since DrawPlane assumes ground Y=0
+	box := g.plane.BoundingBox()
+	size := rl.Vector3Subtract(box.Max, box.Min)
+	
+	// Ensure minimum thickness so rl.DrawCubeV renders something visible (as plane has 0 depth)
+	if size.X == 0 { size.X = 0.01 }
+	if size.Y == 0 { size.Y = 0.01 }
+	if size.Z == 0 { size.Z = 0.01 }
+	
+	center := rl.Vector3Add(box.Min, rl.Vector3Scale(size, 0.5))
+	
+	rl.DrawCubeV(center, size, fill)
+	rl.DrawCubeWiresV(center, size, g.states[3].color)
+}
+
 func (g *Game) drawPositionPoints() {
 	boxPos := g.box.GetPosition()
 	cylPos := g.cyl.GetPosition()
 	ptPos := g.point.GetPosition()
+	planePos := g.plane.GetPosition()
 
 	rl.DrawSphere(boxPos, 0.10, rl.DarkBlue)
 	rl.DrawSphere(ptPos, 0.10, rl.Red)
 	rl.DrawSphere(cylPos, 0.10, rl.DarkGreen)
+	rl.DrawSphere(planePos, 0.10, rl.Purple)
 
 	rl.DrawLine3D(boxPos, rl.Vector3Add(boxPos, rl.NewVector3(0, 0.45, 0)), rl.DarkBlue)
 	rl.DrawLine3D(cylPos, rl.Vector3Add(cylPos, rl.NewVector3(0, 0.45, 0)), rl.DarkGreen)
 	rl.DrawLine3D(ptPos, rl.Vector3Add(ptPos, rl.NewVector3(0, 0.45, 0)), rl.Red)
+	rl.DrawLine3D(planePos, rl.Vector3Add(planePos, rl.NewVector3(0, 0.45, 0)), rl.Purple)
 }
 
 func (g *Game) drawUI() {
 	active := g.states[g.active].name
-	boxPos := g.box.GetPosition()
-	ptPos := g.point.GetPosition()
-	cylPos := g.cyl.GetPosition()
-
 	camPos := g.camera.Position
+	activeCol := g.activeCollider()
 
 	rl.DrawText("Collision 3D demo", 16, 12, 24, rl.Black)
 	rl.DrawText("TAB: switch collider", 16, 42, 20, rl.DarkGray)
 	rl.DrawText("Camera: WASD + Q/E | MMB drag rotate", 16, 66, 20, rl.DarkGray)
-	rl.DrawText("Collider: Arrows + Space/LShift (plane static)", 16, 90, 20, rl.DarkGray)
+	rl.DrawText("Collider: Arrows + Space/LShift", 16, 90, 20, rl.DarkGray)
 	rl.DrawText("Active: "+active, 16, 120, 22, rl.Black)
 	rl.DrawText(fmt.Sprintf("Camera pos: (%.2f, %.2f, %.2f)", camPos.X, camPos.Y, camPos.Z), 16, 148, 20, rl.Brown)
-	rl.DrawText(fmt.Sprintf("Box pos: (%.2f, %.2f, %.2f)", boxPos.X, boxPos.Y, boxPos.Z), 16, 172, 20, rl.DarkBlue)
-	rl.DrawText(fmt.Sprintf("Cylinder pos: (%.2f, %.2f, %.2f)", cylPos.X, cylPos.Y, cylPos.Z), 16, 196, 20, rl.DarkGreen)
-	rl.DrawText(fmt.Sprintf("Point pos: (%.2f, %.2f, %.2f)", ptPos.X, ptPos.Y, ptPos.Z), 16, 220, 20, rl.DarkBlue)
+
+	// Display position and distance stats
+	y := int32(172)
+	for i, col := range g.colliders() {
+		var pos rl.Vector3
+		switch c := col.(type) {
+		case *col3d.BoxCollider:
+			pos = c.GetPosition()
+		case *col3d.CylinderCollider:
+			pos = c.GetPosition()
+		case *col3d.PointCollider:
+			pos = c.GetPosition()
+		case *col3d.PlaneCollider:
+			pos = c.GetPosition()
+		}
+		state := g.states[i]
+		
+		if i == g.active {
+			rl.DrawText(fmt.Sprintf("%s pos: (%.2f, %.2f, %.2f) [ACTIVE]", state.name, pos.X, pos.Y, pos.Z), 16, y, 20, state.color)
+		} else {
+			// Calculate minimal distance between volumes.
+			// Distance is 0 when touching or overlapping.
+			dist := activeCol.DistanceTo(col)
+			rl.DrawText(fmt.Sprintf("%s pos: (%.2f, %.2f, %.2f) | Dist: %.2f", state.name, pos.X, pos.Y, pos.Z, dist), 16, y, 20, state.color)
+		}
+		y += 24
+	}
 
 	status := "No collision"
 	if g.contact.Hit {
-		status = "Collision detected"
+		status = "Collision detected! Active shifted."
 	}
-	rl.DrawText(status, 16, 248, 22, rl.Maroon)
+	rl.DrawText(status, 16, y+12, 22, rl.Maroon)
 }
 
 func main() {
