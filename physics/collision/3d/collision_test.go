@@ -65,7 +65,7 @@ func TestRaycastBox(t *testing.T) {
 }
 
 func TestCylinderVsBoxContactAndResolve(t *testing.T) {
-	cylinder := NewCylinderCollider(rl.NewVector3(0.5, 0, 0.5), 0.5, 2)
+	cylinder := NewCylinderColliderV(rl.NewVector3(0.5, 0, 0.5), 0.5, 2)
 	box := NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 2, 1))
 
 	hit := Collide(cylinder, box)
@@ -92,7 +92,7 @@ func TestPlaneAxisNormal(t *testing.T) {
 }
 
 func TestCylinderCenter(t *testing.T) {
-	c := NewCylinderCollider(rl.NewVector3(2, 4, 6), 1, 8)
+	c := NewCylinderColliderV(rl.NewVector3(2, 4, 6), 1, 8)
 	center := c.Center()
 	if center.X != 2 || center.Y != 8 || center.Z != 6 {
 		t.Fatalf("unexpected cylinder center: %+v", center)
@@ -158,8 +158,8 @@ func TestDistance_BoxVsBox_OverlapIsZero(t *testing.T) {
 }
 
 func TestDistance_CylinderVsCylinder_OverlapIsZero(t *testing.T) {
-	a := NewCylinderCollider(rl.NewVector3(0, 0, 0), 1, 2)
-	b := NewCylinderCollider(rl.NewVector3(1, 0, 0), 1, 2)
+	a := NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 2)
+	b := NewCylinderColliderV(rl.NewVector3(1, 0, 0), 1, 2)
 
 	if dist := a.DistanceTo(b); dist != 0 {
 		t.Fatalf("expected zero distance for overlapping cylinders, got %f", dist)
@@ -167,7 +167,7 @@ func TestDistance_CylinderVsCylinder_OverlapIsZero(t *testing.T) {
 }
 
 func TestDistance_PointVsCylinder_OutsideCircleNonZero(t *testing.T) {
-	cyl := NewCylinderCollider(rl.NewVector3(0, 0, 0), 1, 2)
+	cyl := NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 2)
 	pt := NewPointV(rl.NewVector3(2, 1, 0))
 
 	if dist := pt.DistanceTo(cyl); dist <= 0 {
@@ -180,8 +180,8 @@ func TestDistance_SymmetryForSupportedPairs(t *testing.T) {
 
 	boxA := NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2))
 	boxB := NewBoxColliderV(rl.NewVector3(4, 1, 0), rl.NewVector3(1, 2, 1))
-	cylA := NewCylinderCollider(rl.NewVector3(1, 0, 3), 0.75, 2)
-	cylB := NewCylinderCollider(rl.NewVector3(4, 1, 3), 0.5, 1.5)
+	cylA := NewCylinderColliderV(rl.NewVector3(1, 0, 3), 0.75, 2)
+	cylB := NewCylinderColliderV(rl.NewVector3(4, 1, 3), 0.5, 1.5)
 	point := NewPointV(rl.NewVector3(3, 3, 3))
 	planeY := NewPlaneCollider(rl.NewVector3(0, 0, 0), 6, 6, PlaneAxisYPos)
 
@@ -262,11 +262,11 @@ func TestCollide_ReverseOrderNormalsAreOpposite_WhenBothSupported(t *testing.T) 
 		{
 			name: "box-cylinder",
 			a:    NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
-			b:    NewCylinderCollider(rl.NewVector3(1.5, 0, 1), 0.75, 2),
+			b:    NewCylinderColliderV(rl.NewVector3(1.5, 0, 1), 0.75, 2),
 		},
 		{
 			name: "cylinder-plane",
-			a:    NewCylinderCollider(rl.NewVector3(1, 0, 1), 0.5, 2),
+			a:    NewCylinderColliderV(rl.NewVector3(1, 0, 1), 0.5, 2),
 			b:    NewPlaneCollider(rl.NewVector3(0, 1.8, 0), 3, 3, PlaneAxisYPos),
 		},
 	}
@@ -295,7 +295,7 @@ func TestCollide_ReverseOrderNormalsAreOpposite_WhenBothSupported(t *testing.T) 
 
 func TestCylinderVsHorizontalPlane_MinimalTranslationDirection(t *testing.T) {
 	plane := NewPlaneCollider(rl.NewVector3(0, 0.2, 0), 4, 4, PlaneAxisYPos)
-	cylinder := NewCylinderCollider(rl.NewVector3(1, 0, 1), 0.5, 2)
+	cylinder := NewCylinderColliderV(rl.NewVector3(1, 0, 1), 0.5, 2)
 
 	hit := Collide(cylinder, plane)
 	if !hit.Hit {
@@ -324,7 +324,7 @@ func TestCollide_OrderIndependence_AllSupportedUnorderedPairs(t *testing.T) {
 		{
 			name: "box-cylinder",
 			a:    NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
-			b:    NewCylinderCollider(rl.NewVector3(1.4, 0, 1), 0.75, 2),
+			b:    NewCylinderColliderV(rl.NewVector3(1.4, 0, 1), 0.75, 2),
 		},
 		{
 			name: "box-point",
@@ -333,17 +333,17 @@ func TestCollide_OrderIndependence_AllSupportedUnorderedPairs(t *testing.T) {
 		},
 		{
 			name: "cylinder-cylinder",
-			a:    NewCylinderCollider(rl.NewVector3(0, 0, 0), 1, 2),
-			b:    NewCylinderCollider(rl.NewVector3(1.5, 0, 0), 1, 2),
+			a:    NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 2),
+			b:    NewCylinderColliderV(rl.NewVector3(1.5, 0, 0), 1, 2),
 		},
 		{
 			name: "cylinder-point",
-			a:    NewCylinderCollider(rl.NewVector3(0, 0, 0), 1, 2),
+			a:    NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 2),
 			b:    NewPointV(rl.NewVector3(0.5, 1, 0)),
 		},
 		{
 			name: "cylinder-plane",
-			a:    NewCylinderCollider(rl.NewVector3(1, 0, 1), 0.5, 2),
+			a:    NewCylinderColliderV(rl.NewVector3(1, 0, 1), 0.5, 2),
 			b:    NewPlaneCollider(rl.NewVector3(0, 1.8, 0), 3, 3, PlaneAxisYPos),
 		},
 	}
@@ -368,4 +368,463 @@ func TestCollide_OrderIndependence_AllSupportedUnorderedPairs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRaycastCylinder_SideHit(t *testing.T) {
+	cyl := NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 4)
+	ray := rl.NewRay(rl.NewVector3(-3, 2, 0), rl.NewVector3(1, 0, 0))
+
+	hit := Raycast(ray, cyl)
+	if !hit.Hit {
+		t.Fatalf("expected side hit")
+	}
+
+	if !vecApprox(hit.Point, rl.NewVector3(-1, 2, 0), 1e-4) {
+		t.Fatalf("unexpected hit point: %+v", hit.Point)
+	}
+	if !vecApprox(hit.Normal, rl.NewVector3(-1, 0, 0), 1e-4) {
+		t.Fatalf("unexpected side normal: %+v", hit.Normal)
+	}
+}
+
+func TestRaycastCylinder_TopHit(t *testing.T) {
+	cyl := NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 4)
+	ray := rl.NewRay(rl.NewVector3(0, 6, 0), rl.NewVector3(0, -1, 0))
+
+	hit := Raycast(ray, cyl)
+	if !hit.Hit {
+		t.Fatalf("expected top-cap hit")
+	}
+
+	if !vecApprox(hit.Point, rl.NewVector3(0, 4, 0), 1e-4) {
+		t.Fatalf("unexpected hit point: %+v", hit.Point)
+	}
+	if !vecApprox(hit.Normal, rl.NewVector3(0, 1, 0), 1e-4) {
+		t.Fatalf("unexpected top normal: %+v", hit.Normal)
+	}
+}
+
+func TestRaycastCylinder_BottomHit(t *testing.T) {
+	cyl := NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 4)
+	ray := rl.NewRay(rl.NewVector3(0, -2, 0), rl.NewVector3(0, 1, 0))
+
+	hit := Raycast(ray, cyl)
+	if !hit.Hit {
+		t.Fatalf("expected bottom-cap hit")
+	}
+
+	if !vecApprox(hit.Point, rl.NewVector3(0, 0, 0), 1e-4) {
+		t.Fatalf("unexpected hit point: %+v", hit.Point)
+	}
+	if !vecApprox(hit.Normal, rl.NewVector3(0, -1, 0), 1e-4) {
+		t.Fatalf("unexpected bottom normal: %+v", hit.Normal)
+	}
+}
+
+func TestRaycastCylinder_Miss(t *testing.T) {
+	cyl := NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 4)
+	ray := rl.NewRay(rl.NewVector3(3, 2, 0), rl.NewVector3(0, 1, 0))
+
+	hit := Raycast(ray, cyl)
+	if hit.Hit {
+		t.Fatalf("expected miss, got %+v", hit)
+	}
+}
+
+func TestRaycastCylinder_TallCylinderTopHit(t *testing.T) {
+	cyl := NewCylinderColliderV(rl.NewVector3(0, 0, 0), 0.5, 10)
+	ray := rl.NewRay(rl.NewVector3(0, 20, 0), rl.NewVector3(0, -1, 0))
+
+	hit := Raycast(ray, cyl)
+	if !hit.Hit {
+		t.Fatalf("expected top hit for tall cylinder")
+	}
+
+	if !vecApprox(hit.Point, rl.NewVector3(0, 10, 0), 1e-4) {
+		t.Fatalf("unexpected hit point: %+v", hit.Point)
+	}
+	if !vecApprox(hit.Normal, rl.NewVector3(0, 1, 0), 1e-4) {
+		t.Fatalf("unexpected top normal: %+v", hit.Normal)
+	}
+}
+
+func TestRaycastPlane_NormalMatchesAxis(t *testing.T) {
+	tests := []struct {
+		name   string
+		plane  *PlaneCollider
+		ray    rl.Ray
+		normal rl.Vector3
+	}{
+		{
+			name:   "x+",
+			plane:  NewPlaneCollider(rl.NewVector3(0, 0, 0), 4, 4, PlaneAxisXPos),
+			ray:    rl.NewRay(rl.NewVector3(-2, 2, 2), rl.NewVector3(1, 0, 0)),
+			normal: rl.NewVector3(1, 0, 0),
+		},
+		{
+			name:   "x-",
+			plane:  NewPlaneCollider(rl.NewVector3(0, 0, 0), 4, 4, PlaneAxisXNeg),
+			ray:    rl.NewRay(rl.NewVector3(-2, 2, 2), rl.NewVector3(1, 0, 0)),
+			normal: rl.NewVector3(-1, 0, 0),
+		},
+		{
+			name:   "y+",
+			plane:  NewPlaneCollider(rl.NewVector3(0, 0, 0), 4, 4, PlaneAxisYPos),
+			ray:    rl.NewRay(rl.NewVector3(2, -2, 2), rl.NewVector3(0, 1, 0)),
+			normal: rl.NewVector3(0, 1, 0),
+		},
+		{
+			name:   "y-",
+			plane:  NewPlaneCollider(rl.NewVector3(0, 0, 0), 4, 4, PlaneAxisYNeg),
+			ray:    rl.NewRay(rl.NewVector3(2, -2, 2), rl.NewVector3(0, 1, 0)),
+			normal: rl.NewVector3(0, -1, 0),
+		},
+		{
+			name:   "z+",
+			plane:  NewPlaneCollider(rl.NewVector3(0, 0, 0), 4, 4, PlaneAxisZPos),
+			ray:    rl.NewRay(rl.NewVector3(2, 2, -2), rl.NewVector3(0, 0, 1)),
+			normal: rl.NewVector3(0, 0, 1),
+		},
+		{
+			name:   "z-",
+			plane:  NewPlaneCollider(rl.NewVector3(0, 0, 0), 4, 4, PlaneAxisZNeg),
+			ray:    rl.NewRay(rl.NewVector3(2, 2, -2), rl.NewVector3(0, 0, 1)),
+			normal: rl.NewVector3(0, 0, -1),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			hit := Raycast(tc.ray, tc.plane)
+			if !hit.Hit {
+				t.Fatalf("expected ray hit")
+			}
+			if !vecApprox(hit.Normal, tc.normal, 1e-5) {
+				t.Fatalf("expected normal %+v, got %+v", tc.normal, hit.Normal)
+			}
+		})
+	}
+}
+
+type pairScenario struct {
+	name      string
+	expectHit bool
+	build     func() (Collider, Collider)
+}
+
+func TestCollisionMatrix_BoundaryAndReverseOrder(t *testing.T) {
+	scenarios := []pairScenario{
+		{
+			name:      "box-box/face-touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewBoxColliderV(rl.NewVector3(1, 0, 0), rl.NewVector3(1, 1, 1))
+			},
+		},
+		{
+			name:      "box-box/edge-touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewBoxColliderV(rl.NewVector3(1, 1, 0), rl.NewVector3(1, 1, 1))
+			},
+		},
+		{
+			name:      "box-box/corner-touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewBoxColliderV(rl.NewVector3(1, 1, 1), rl.NewVector3(1, 1, 1))
+			},
+		},
+		{
+			name:      "box-box/fully-inside",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+					NewBoxColliderV(rl.NewVector3(0.5, 0.5, 0.5), rl.NewVector3(0.5, 0.5, 0.5))
+			},
+		},
+		{
+			name:      "box-box/separated-axis",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewBoxColliderV(rl.NewVector3(2.1, 0, 0), rl.NewVector3(1, 1, 1))
+			},
+		},
+		{
+			name:      "box-box/separated-diagonal",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewBoxColliderV(rl.NewVector3(2, 2, 2), rl.NewVector3(1, 1, 1))
+			},
+		},
+		{
+			name:      "box-cylinder/overlap",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+					NewCylinderColliderV(rl.NewVector3(1, 0, 1), 0.5, 2)
+			},
+		},
+		{
+			name:      "box-cylinder/separated-axis",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewCylinderColliderV(rl.NewVector3(2, 0, 0.5), 0.4, 1)
+			},
+		},
+		{
+			name:      "box-point/face-touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewPointV(rl.NewVector3(1, 0.5, 0.5))
+			},
+		},
+		{
+			name:      "box-point/separated-diagonal",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewPointV(rl.NewVector3(2, 2, 2))
+			},
+		},
+		{
+			name:      "cylinder-cylinder/face-touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(0, 0, 0), 0.5, 1),
+					NewCylinderColliderV(rl.NewVector3(1, 0, 0), 0.5, 1)
+			},
+		},
+		{
+			name:      "cylinder-cylinder/separated-diagonal",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(0, 0, 0), 0.5, 1),
+					NewCylinderColliderV(rl.NewVector3(2, 2, 0), 0.5, 1)
+			},
+		},
+		{
+			name:      "cylinder-point/side-touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 2),
+					NewPointV(rl.NewVector3(1, 1, 0))
+			},
+		},
+		{
+			name:      "cylinder-point/separated-axis",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 2),
+					NewPointV(rl.NewVector3(0, 3, 0))
+			},
+		},
+		{
+			name:      "cylinder-plane/face-touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(2, 0, 2), 0.5, 1),
+					NewPlaneCollider(rl.NewVector3(0, 1, 0), 4, 4, PlaneAxisYPos)
+			},
+		},
+		{
+			name:      "cylinder-plane/separated-axis",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(2, 2.2, 2), 0.5, 1),
+					NewPlaneCollider(rl.NewVector3(0, 1, 0), 4, 4, PlaneAxisYPos)
+			},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		t.Run(scenario.name, func(t *testing.T) {
+			a, b := scenario.build()
+			ab := Collide(a, b)
+			ba := Collide(b, a)
+
+			if ab.Hit != scenario.expectHit {
+				t.Fatalf("expected ab hit=%v, got %v", scenario.expectHit, ab.Hit)
+			}
+			if ba.Hit != scenario.expectHit {
+				t.Fatalf("expected ba hit=%v, got %v", scenario.expectHit, ba.Hit)
+			}
+
+			if !scenario.expectHit {
+				return
+			}
+
+			if ab.Penetration < 0 || ba.Penetration < 0 {
+				t.Fatalf("penetration must be non-negative, got ab=%f ba=%f", ab.Penetration, ba.Penetration)
+			}
+
+			if math.Abs(float64(ab.Penetration-ba.Penetration)) > 1e-5 {
+				t.Fatalf("expected equal penetration, got %f and %f", ab.Penetration, ba.Penetration)
+			}
+
+			if math.Abs(float64(ab.Normal.X+ba.Normal.X)) > 1e-5 ||
+				math.Abs(float64(ab.Normal.Y+ba.Normal.Y)) > 1e-5 ||
+				math.Abs(float64(ab.Normal.Z+ba.Normal.Z)) > 1e-5 {
+				t.Fatalf("expected opposite normals, got ab=%+v ba=%+v", ab.Normal, ba.Normal)
+			}
+		})
+	}
+}
+
+func TestDistanceInvariants_Matrix(t *testing.T) {
+	const eps = 1e-5
+
+	scenarios := []pairScenario{
+		{
+			name:      "box-box/overlap",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+					NewBoxColliderV(rl.NewVector3(1, 1, 1), rl.NewVector3(2, 2, 2))
+			},
+		},
+		{
+			name:      "box-box/touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewBoxColliderV(rl.NewVector3(1, 0, 0), rl.NewVector3(1, 1, 1))
+			},
+		},
+		{
+			name:      "box-box/separated",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewBoxColliderV(rl.NewVector3(3, 0, 0), rl.NewVector3(1, 1, 1))
+			},
+		},
+		{
+			name:      "box-cylinder/overlap",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+					NewCylinderColliderV(rl.NewVector3(1, 0, 1), 0.75, 2)
+			},
+		},
+		{
+			name:      "box-cylinder/separated",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewCylinderColliderV(rl.NewVector3(3, 0, 0.5), 0.4, 1)
+			},
+		},
+		{
+			name:      "box-point/touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewPointV(rl.NewVector3(1, 0.2, 0.2))
+			},
+		},
+		{
+			name:      "box-point/separated",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(1, 1, 1)),
+					NewPointV(rl.NewVector3(3, 3, 3))
+			},
+		},
+		{
+			name:      "cylinder-cylinder/overlap",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 2),
+					NewCylinderColliderV(rl.NewVector3(1, 0, 0), 1, 2)
+			},
+		},
+		{
+			name:      "cylinder-cylinder/separated",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(0, 0, 0), 0.5, 1),
+					NewCylinderColliderV(rl.NewVector3(2, 2, 0), 0.5, 1)
+			},
+		},
+		{
+			name:      "cylinder-point/touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 2),
+					NewPointV(rl.NewVector3(1, 1, 0))
+			},
+		},
+		{
+			name:      "cylinder-point/separated",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(0, 0, 0), 1, 2),
+					NewPointV(rl.NewVector3(0, 4, 0))
+			},
+		},
+		{
+			name:      "cylinder-plane/touch",
+			expectHit: true,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(2, 0, 2), 0.5, 1),
+					NewPlaneCollider(rl.NewVector3(0, 1, 0), 4, 4, PlaneAxisYPos)
+			},
+		},
+		{
+			name:      "cylinder-plane/separated",
+			expectHit: false,
+			build: func() (Collider, Collider) {
+				return NewCylinderColliderV(rl.NewVector3(2, 3, 2), 0.5, 1),
+					NewPlaneCollider(rl.NewVector3(0, 1, 0), 4, 4, PlaneAxisYPos)
+			},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		t.Run(scenario.name, func(t *testing.T) {
+			a, b := scenario.build()
+			d1 := a.DistanceTo(b)
+			d2 := b.DistanceTo(a)
+
+			if math.IsNaN(float64(d1)) || math.IsInf(float64(d1), 1) {
+				t.Fatalf("distance a->b must be finite, got %f", d1)
+			}
+			if math.IsNaN(float64(d2)) || math.IsInf(float64(d2), 1) {
+				t.Fatalf("distance b->a must be finite, got %f", d2)
+			}
+
+			if d1 < 0 || d2 < 0 {
+				t.Fatalf("distance must be non-negative, got %f and %f", d1, d2)
+			}
+
+			if math.Abs(float64(d1-d2)) > eps {
+				t.Fatalf("distance must be symmetric, got %f and %f", d1, d2)
+			}
+
+			if scenario.expectHit {
+				if math.Abs(float64(d1)) > eps {
+					t.Fatalf("expected zero distance for overlap/touch, got %f", d1)
+				}
+				return
+			}
+
+			if d1 <= 0 {
+				t.Fatalf("expected positive distance for separated case, got %f", d1)
+			}
+		})
+	}
+}
+
+func vecApprox(a, b rl.Vector3, eps float64) bool {
+	return math.Abs(float64(a.X-b.X)) <= eps &&
+		math.Abs(float64(a.Y-b.Y)) <= eps &&
+		math.Abs(float64(a.Z-b.Z)) <= eps
 }

@@ -87,7 +87,7 @@ func (p *PlaneCollider) DistanceTo(other Collider) float32 {
 	case *BoxCollider:
 		return boxVsPlaneDistance(*c, *p)
 	default:
-		return unsupportedDistance()
+		return infiniteDistance()
 	}
 }
 

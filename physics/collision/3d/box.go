@@ -1,7 +1,6 @@
 package col3d
 
 import (
-	"github.com/chewxy/math32"
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
@@ -53,72 +52,8 @@ func (b *BoxCollider) DistanceTo(other Collider) float32 {
 	case *PlaneCollider:
 		return boxVsPlaneDistance(*b, *c)
 	default:
-		return unsupportedDistance()
+		return infiniteDistance()
 	}
-}
-
-func boxVsBoxDistance(a, b BoxCollider) float32 {
-	aMax := a.Max()
-	bMax := b.Max()
-
-	gapX := intervalGap(a.Position.X, aMax.X, b.Position.X, bMax.X)
-	gapY := intervalGap(a.Position.Y, aMax.Y, b.Position.Y, bMax.Y)
-	gapZ := intervalGap(a.Position.Z, aMax.Z, b.Position.Z, bMax.Z)
-
-	return math32.Sqrt(gapX*gapX + gapY*gapY + gapZ*gapZ)
-}
-
-func boxVsCylinderDistance(box BoxCollider, cyl CylinderCollider) float32 {
-	boxMax := box.Max()
-
-	horizontalGap := circleRectGapXZ(
-		cyl.Position.X,
-		cyl.Position.Z,
-		cyl.Radius,
-		box.Position.X,
-		boxMax.X,
-		box.Position.Z,
-		boxMax.Z,
-	)
-	verticalGap := intervalGap(box.Position.Y, boxMax.Y, cyl.Position.Y, cyl.Position.Y+cyl.Height)
-
-	return combineOrthogonalGaps(horizontalGap, verticalGap)
-}
-
-func boxVsPointDistance(box BoxCollider, pt PointCollider) float32 {
-	closestX := math32.Max(box.Position.X, math32.Min(pt.Position.X, box.Position.X+box.Size.X))
-	closestY := math32.Max(box.Position.Y, math32.Min(pt.Position.Y, box.Position.Y+box.Size.Y))
-	closestZ := math32.Max(box.Position.Z, math32.Min(pt.Position.Z, box.Position.Z+box.Size.Z))
-
-	dx := pt.Position.X - closestX
-	dy := pt.Position.Y - closestY
-	dz := pt.Position.Z - closestZ
-
-	distSq := dx*dx + dy*dy + dz*dz
-	return math32.Sqrt(distSq)
-}
-
-func boxVsPlaneDistance(box BoxCollider, plane PlaneCollider) float32 {
-	boxMax := box.Max()
-
-	var gapX, gapY, gapZ float32
-
-	switch plane.Axis {
-	case PlaneAxisXPos, PlaneAxisXNeg:
-		gapX = intervalGap(box.Position.X, boxMax.X, plane.Position.X, plane.Position.X)
-		gapY = intervalGap(box.Position.Y, boxMax.Y, plane.Position.Y, plane.Position.Y+plane.Height)
-		gapZ = intervalGap(box.Position.Z, boxMax.Z, plane.Position.Z, plane.Position.Z+plane.Width)
-	case PlaneAxisYPos, PlaneAxisYNeg:
-		gapX = intervalGap(box.Position.X, boxMax.X, plane.Position.X, plane.Position.X+plane.Width)
-		gapY = intervalGap(box.Position.Y, boxMax.Y, plane.Position.Y, plane.Position.Y)
-		gapZ = intervalGap(box.Position.Z, boxMax.Z, plane.Position.Z, plane.Position.Z+plane.Height)
-	case PlaneAxisZPos, PlaneAxisZNeg:
-		gapX = intervalGap(box.Position.X, boxMax.X, plane.Position.X, plane.Position.X+plane.Width)
-		gapY = intervalGap(box.Position.Y, boxMax.Y, plane.Position.Y, plane.Position.Y+plane.Height)
-		gapZ = intervalGap(box.Position.Z, boxMax.Z, plane.Position.Z, plane.Position.Z)
-	}
-
-	return math32.Sqrt(gapX*gapX + gapY*gapY + gapZ*gapZ)
 }
 
 // Returns raylib AABB representation of box

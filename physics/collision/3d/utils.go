@@ -34,7 +34,7 @@ func intervalGap(aMin, aMax, bMin, bMax float32) float32 {
 func pointRectDistanceXZ(px, pz, minX, maxX, minZ, maxZ float32) float32 {
 	dx := intervalGap(px, px, minX, maxX)
 	dz := intervalGap(pz, pz, minZ, maxZ)
-	return combineOrthogonalGaps(dx, dz)
+	return math32.Sqrt(dx*dx + dz*dz)
 }
 
 func circleRectGapXZ(cx, cz, r, minX, maxX, minZ, maxZ float32) float32 {
@@ -42,11 +42,45 @@ func circleRectGapXZ(cx, cz, r, minX, maxX, minZ, maxZ float32) float32 {
 	return math32.Max(0, pointToRect-r)
 }
 
-func combineOrthogonalGaps(g1, g2 float32) float32 {
-	return math32.Sqrt(g1*g1 + g2*g2)
+func pointAABBDistance3D(px, py, pz, minX, maxX, minY, maxY, minZ, maxZ float32) float32 {
+	dx := intervalGap(px, px, minX, maxX)
+	dy := intervalGap(py, py, minY, maxY)
+	dz := intervalGap(pz, pz, minZ, maxZ)
+	return math32.Sqrt(dx*dx + dy*dy + dz*dz)
 }
 
-func unsupportedDistance() float32 {
+func pointCylinderDistance(px, py, pz, cx, baseY, cz, radius, height float32) float32 {
+	dx := px - cx
+	dz := pz - cz
+	distXZ := math32.Sqrt(dx*dx + dz*dz)
+	horizontalGap := math32.Max(0, distXZ-radius)
+	verticalGap := intervalGap(py, py, baseY, baseY+height)
+	return math32.Sqrt(horizontalGap*horizontalGap + verticalGap*verticalGap)
+}
+
+
+func aabbDistanceToPlaneRect(minX, maxX, minY, maxY, minZ, maxZ float32, plane PlaneCollider) float32 {
+	var gapX, gapY, gapZ float32
+
+	switch plane.Axis {
+	case PlaneAxisXPos, PlaneAxisXNeg:
+		gapX = intervalGap(minX, maxX, plane.Position.X, plane.Position.X)
+		gapY = intervalGap(minY, maxY, plane.Position.Y, plane.Position.Y+plane.Height)
+		gapZ = intervalGap(minZ, maxZ, plane.Position.Z, plane.Position.Z+plane.Width)
+	case PlaneAxisYPos, PlaneAxisYNeg:
+		gapX = intervalGap(minX, maxX, plane.Position.X, plane.Position.X+plane.Width)
+		gapY = intervalGap(minY, maxY, plane.Position.Y, plane.Position.Y)
+		gapZ = intervalGap(minZ, maxZ, plane.Position.Z, plane.Position.Z+plane.Height)
+	case PlaneAxisZPos, PlaneAxisZNeg:
+		gapX = intervalGap(minX, maxX, plane.Position.X, plane.Position.X+plane.Width)
+		gapY = intervalGap(minY, maxY, plane.Position.Y, plane.Position.Y+plane.Height)
+		gapZ = intervalGap(minZ, maxZ, plane.Position.Z, plane.Position.Z)
+	}
+
+	return math32.Sqrt(gapX*gapX + gapY*gapY + gapZ*gapZ)
+}
+
+func infiniteDistance() float32 {
 	return float32(math.Inf(1))
 }
 

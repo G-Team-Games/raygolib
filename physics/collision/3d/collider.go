@@ -1,3 +1,4 @@
+// Package col3d provides simple 3D collision and raycast primitives.
 package col3d
 
 import (
