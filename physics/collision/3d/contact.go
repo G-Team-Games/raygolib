@@ -260,26 +260,23 @@ func cylinderVsPlaneContact(cylinder *CylinderCollider, plane *PlaneCollider) Co
 		)
 		distanceXZ := rl.Vector2Length(difference)
 		penetrationXZ := cylinder.Radius - distanceXZ
-		distanceY1 := cylinder.Position.Y - plane.Position.Y
-		distanceY2 := plane.Position.Y - (cylinder.Position.Y + cylinder.Height)
+		planeY := plane.Position.Y
+		cylMinY := cylinder.Position.Y
+		cylMaxY := cylinder.Position.Y + cylinder.Height
 
-		if penetrationXZ < 0 || distanceY1 > 0 || distanceY2 > 0 {
+		if penetrationXZ < 0 || planeY < cylMinY || planeY > cylMaxY {
 			return Contact{}
 		}
 
-		if plane.Axis == PlaneAxisYNeg {
-			return Contact{
-				Hit: true,
-				Normal:      rl.NewVector3(0, 1, 0),
-				Penetration: -distanceY2,
-			}
+		moveUp := planeY - cylMinY
+		moveDown := cylMaxY - planeY
+
+		// Deterministic fallback for exact mid-plane ties: prefer +Y.
+		if moveUp <= moveDown {
+			return Contact{Hit: true, Normal: rl.NewVector3(0, 1, 0), Penetration: moveUp}
 		}
 
-		return Contact{
-			Hit:         true,
-			Normal:      rl.NewVector3(0, -1, 0),
-			Penetration: -distanceY1,
-		}
+		return Contact{Hit: true, Normal: rl.NewVector3(0, -1, 0), Penetration: moveDown}
 	}
 
 	return Contact{}

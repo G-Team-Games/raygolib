@@ -224,3 +224,88 @@ func TestDistance_UnsupportedPairReturnsInf(t *testing.T) {
 		t.Fatalf("expected +Inf for unsupported distance pair, got %f", d)
 	}
 }
+
+func TestResolveByMTV_ReducesOverlap_BoxBoxInOneStep(t *testing.T) {
+	a := NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2))
+	b := NewBoxColliderV(rl.NewVector3(1.5, 0, 0), rl.NewVector3(2, 2, 2))
+
+	hit := Collide(a, b)
+	if !hit.Hit {
+		t.Fatalf("expected initial overlap")
+	}
+	if hit.Penetration <= 0 {
+		t.Fatalf("expected penetration > 0, got %f", hit.Penetration)
+	}
+
+	ResolveByMTV(a.GetPosition, a.SetPosition, hit)
+	after := Collide(a, b)
+
+	if !after.Hit {
+		t.Fatalf("expected touching state after one-step resolve")
+	}
+	if after.Penetration != 0 {
+		t.Fatalf("expected zero penetration after resolve, got %f", after.Penetration)
+	}
+}
+
+func TestCollide_ReverseOrderNormalsAreOpposite_WhenBothSupported(t *testing.T) {
+	tests := []struct {
+		name string
+		a    Collider
+		b    Collider
+	}{
+		{
+			name: "box-box",
+			a:    NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+			b:    NewBoxColliderV(rl.NewVector3(1, 0, 0), rl.NewVector3(2, 2, 2)),
+		},
+		{
+			name: "box-cylinder",
+			a:    NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2)),
+			b:    NewCylinderCollider(rl.NewVector3(1.5, 0, 1), 0.75, 2),
+		},
+		{
+			name: "cylinder-plane",
+			a:    NewCylinderCollider(rl.NewVector3(1, 0, 1), 0.5, 2),
+			b:    NewPlaneCollider(rl.NewVector3(0, 1.8, 0), 3, 3, PlaneAxisYPos),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ab := Collide(tc.a, tc.b)
+			ba := Collide(tc.b, tc.a)
+
+			if !ab.Hit || !ba.Hit {
+				t.Fatalf("expected hits in both call orders, got ab=%v ba=%v", ab.Hit, ba.Hit)
+			}
+
+			if math.Abs(float64(ab.Penetration-ba.Penetration)) > 1e-5 {
+				t.Fatalf("expected equal penetration, got %f vs %f", ab.Penetration, ba.Penetration)
+			}
+
+			if math.Abs(float64(ab.Normal.X+ba.Normal.X)) > 1e-5 ||
+				math.Abs(float64(ab.Normal.Y+ba.Normal.Y)) > 1e-5 ||
+				math.Abs(float64(ab.Normal.Z+ba.Normal.Z)) > 1e-5 {
+				t.Fatalf("expected opposite normals, got ab=%+v ba=%+v", ab.Normal, ba.Normal)
+			}
+		})
+	}
+}
+
+func TestCylinderVsHorizontalPlane_MinimalTranslationDirection(t *testing.T) {
+	plane := NewPlaneCollider(rl.NewVector3(0, 0.2, 0), 4, 4, PlaneAxisYPos)
+	cylinder := NewCylinderCollider(rl.NewVector3(1, 0, 1), 0.5, 2)
+
+	hit := Collide(cylinder, plane)
+	if !hit.Hit {
+		t.Fatalf("expected hit")
+	}
+
+	if hit.Normal.X != 0 || hit.Normal.Y != 1 || hit.Normal.Z != 0 {
+		t.Fatalf("expected +Y normal for nearest escape, got %+v", hit.Normal)
+	}
+	if math.Abs(float64(hit.Penetration-0.2)) > 1e-5 {
+		t.Fatalf("expected +Y penetration of 0.2, got %f", hit.Penetration)
+	}
+}
