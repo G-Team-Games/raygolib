@@ -6,36 +6,30 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
-type RayHit struct {
-	Hit    bool
-	Normal rl.Vector3
-	Point  rl.Vector3
-}
-
-func Raycast(ray rl.Ray, collider Collider) RayHit {
+func Raycast(ray rl.Ray, collider Collider) rl.RayCollision {
 	switch c := collider.(type) {
 	case *BoxCollider:
 		box := c.BoundingBox()
 		hit := rl.GetRayCollisionBox(ray, box)
 		if !hit.Hit {
-			return RayHit{}
+			return rl.RayCollision{}
 		}
-		return RayHit{Hit: true, Normal: hit.Normal, Point: hit.Point}
+		return hit
 	case *PlaneCollider:
 		p1, p2, p3, p4 := planeQuad(*c)
 		hit := rl.GetRayCollisionQuad(ray, p1, p2, p3, p4)
 		if !hit.Hit {
-			return RayHit{}
+			return rl.RayCollision{}
 		}
-		return RayHit{Hit: true, Normal: c.Axis.Normal(), Point: hit.Point}
+		return rl.RayCollision{Hit: true, Normal: c.Axis.Normal(), Point: hit.Point, Distance: hit.Distance}
 	case *CylinderCollider:
 		return raycastCylinder(ray, *c)
 	default:
-		return RayHit{}
+		return rl.RayCollision{}
 	}
 }
 
-func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) RayHit {
+func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) rl.RayCollision {
 	origin := ray.Position
 	direction := ray.Direction
 
@@ -46,7 +40,7 @@ func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) RayHit {
 	radiusSq := radius * radius
 
 	tBest := float32(-1)
-	best := RayHit{}
+	best := rl.RayCollision{}
 
 	tryCandidate := func(t float32, normal rl.Vector3) {
 		if t < 0 {
@@ -63,7 +57,7 @@ func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) RayHit {
 		)
 
 		tBest = t
-		best = RayHit{Hit: true, Point: point, Normal: normal}
+		best = rl.RayCollision{Hit: true, Point: point, Normal: normal, Distance: t}
 	}
 
 	// Side intersection with infinite cylinder in XZ, then clamp to finite Y range.
@@ -98,7 +92,7 @@ func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) RayHit {
 				hitZ := origin.Z + direction.Z*t
 				nx := hitX - cx
 				nz := hitZ - cz
-				len := math32.Sqrt(nx*nx + nz*nz)
+				len := rl.Vector2Length(rl.NewVector2(nx, nz))
 				normal := rl.NewVector3(1, 0, 0)
 				if len > epsilon {
 					normal = rl.NewVector3(nx/len, 0, nz/len)
@@ -126,7 +120,7 @@ func raycastCylinder(ray rl.Ray, cylinder CylinderCollider) RayHit {
 			hitZ := origin.Z + direction.Z*t
 			dx := hitX - cx
 			dz := hitZ - cz
-			if dx*dx+dz*dz > radiusSq+epsilon {
+			if rl.Vector2LengthSqr(rl.NewVector2(dx, dz)) > radiusSq+epsilon {
 				continue
 			}
 
