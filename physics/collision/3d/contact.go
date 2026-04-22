@@ -232,7 +232,7 @@ func pointVsPlaneContact(pt *PointCollider, plane *PlaneCollider) Contact {
 }
 
 func pointVsPointContact(a, b *PointCollider) Contact {
-	if a.Position.X == b.Position.X && a.Position.Y == b.Position.Y && a.Position.Z == b.Position.Z {
+	if rl.Vector3Distance(a.Position, b.Position) < epsilon {
 		return Contact{Hit: true, Normal: rl.NewVector3(0, 1, 0), Penetration: 0}
 	}
 	return Contact{}
