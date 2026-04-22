@@ -14,6 +14,14 @@ type fakeGame struct {
 	drawCalls   int
 }
 
+func (f *fakeGame) Init() error {
+	return nil
+}
+
+func (f *fakeGame) Close() error {
+	return nil
+}
+
 func (f *fakeGame) Update(dt float32) error {
 	f.updateCalls++
 	return nil
