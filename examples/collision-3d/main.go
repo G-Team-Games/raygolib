@@ -60,6 +60,14 @@ func (g *Game) activeCollider() col3d.Collider {
 	return g.colliders()[g.active]
 }
 
+func (g *Game) Init() error {
+	return nil
+}
+
+func (g *Game) Close() error {
+	return nil
+}
+
 func (g *Game) Update(dt float32) error {
 	g.moveCamera(dt)
 
