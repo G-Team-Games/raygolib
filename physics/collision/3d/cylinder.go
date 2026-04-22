@@ -17,7 +17,6 @@ func NewCylinderColliderV(position rl.Vector3, radius float32, height float32) *
 		Radius:   radius,
 		Height:   height,
 	}
-
 }
 
 // Kind returns cylinder collider type.
@@ -27,20 +26,12 @@ func (c *CylinderCollider) Kind() ShapeKind {
 
 // Collide returns contact between cylinder and another collider.
 func (c *CylinderCollider) Collide(other Collider) Contact {
-	switch o := other.(type) {
-	case *CylinderCollider:
-		return cylinderVsCylinderContact(c, o)
-	case *BoxCollider:
-		return cylinderVsBoxContact(c, o)
-	case *PlaneCollider:
-		return cylinderVsPlaneContact(c, o)
-	case *PointCollider:
-		contact := cylinderVsPointContact(c, o)
-		contact.Normal = rl.Vector3Negate(contact.Normal)
-		return contact
-	default:
-		return Contact{}
-	}
+	return Collide(c, other)
+}
+
+// DistanceTo returns distance between cylinder and another collider.
+func (c *CylinderCollider) DistanceTo(other Collider) float32 {
+	return Distance(c, other)
 }
 
 // BoundingBox returns enclosing AABB for broad-phase checks.
@@ -71,22 +62,6 @@ func (c *CylinderCollider) GetPosition() rl.Vector3 {
 // SetPosition sets cylinder base-center position.
 func (c *CylinderCollider) SetPosition(vec rl.Vector3) {
 	c.Position = vec
-}
-
-// DistanceTo returns distance between cylinder and another collider.
-func (c *CylinderCollider) DistanceTo(other Collider) float32 {
-	switch o := other.(type) {
-	case *CylinderCollider:
-		return cylinderVsCylinderDistance(c, o)
-	case *BoxCollider:
-		return cylinderVsBoxDistance(c, o)
-	case *PointCollider:
-		return cylinderVsPointDistance(c, o)
-	case *PlaneCollider:
-		return cylinderVsPlaneDistance(c, o)
-	default:
-		return infiniteDistance()
-	}
 }
 
 var _ Collider = (*CylinderCollider)(nil)

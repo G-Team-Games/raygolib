@@ -35,37 +35,21 @@ type Collider interface {
 	BoundingBox() rl.BoundingBox
 }
 
-func unorderedCollideCanonical(a, b Collider) Contact {
-	hit := a.Collide(b)
-	if hit.Hit {
-		return hit
+// Collide dispatches collision using the central registry 
+// and returns the contact between two colliders
+func Collide(a, b Collider) Contact {
+	if handler, ok := collisionRegistry[a.Kind()][b.Kind()]; ok {
+		return handler(a, b)
 	}
-
-	hit = b.Collide(a)
-	if hit.Hit {
-		hit.Normal = rl.Vector3Negate(hit.Normal)
-	}
-
-	return hit
+	return Contact{}
 }
 
-// Collide dispatches collision in an order-safe way.
-//
-// For each unordered pair, it uses a stable canonical order based on ShapeKind,
-// then reorients the normal to match the requested a->b query.
-// If only one direction is implemented by shape methods, this helper still
-// returns a valid contact when available.
-func Collide(a, b Collider) Contact {
-	if a.Kind() <= b.Kind() {
-		return unorderedCollideCanonical(a, b)
+// Distance returns distance between two colliders using the central registry.
+func Distance(a, b Collider) float32 {
+	if handler, ok := distanceRegistry[a.Kind()][b.Kind()]; ok {
+		return handler(a, b)
 	}
-
-	hit := unorderedCollideCanonical(b, a)
-	if hit.Hit {
-		hit.Normal = rl.Vector3Negate(hit.Normal)
-	}
-
-	return hit
+	return infiniteDistance()
 }
 
 // ResolveByMTV applies the contact minimum translation vector to a position.

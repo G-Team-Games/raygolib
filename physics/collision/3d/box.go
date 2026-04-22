@@ -25,39 +25,13 @@ func (b *BoxCollider) Kind() ShapeKind {
 
 // Returns contact between box and another collider
 func (b *BoxCollider) Collide(other Collider) Contact {
-	switch o := other.(type) {
-	case *BoxCollider:
-		return boxVsBoxContact(b, o)
-	case *CylinderCollider:
-		contact := cylinderVsBoxContact(o, b)
-		contact.Normal = rl.Vector3Negate(contact.Normal)
-		return contact
-	case *PointCollider:
-		contact := boxVsPointContact(b, o)
-		contact.Normal = rl.Vector3Negate(contact.Normal)
-		return contact
-	case *PlaneCollider:
-		return boxVsPlaneContact(b, o)
-	default:
-		return Contact{}
-	}
+	return Collide(b, other)
 }
 
 // TODO: Add custom collide method that accepts the collision solver
 
 func (b *BoxCollider) DistanceTo(other Collider) float32 {
-	switch c := other.(type) {
-	case *BoxCollider:
-		return boxVsBoxDistance(b, c)
-	case *CylinderCollider:
-		return boxVsCylinderDistance(b, c)
-	case *PointCollider:
-		return boxVsPointDistance(b, c)
-	case *PlaneCollider:
-		return boxVsPlaneDistance(b, c)
-	default:
-		return infiniteDistance()
-	}
+	return Distance(b, other)
 }
 
 // Returns raylib AABB representation of box

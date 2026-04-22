@@ -19,38 +19,15 @@ func (p *PointCollider) BoundingBox() rl.BoundingBox {
 }
 
 func (p *PointCollider) Collide(other Collider) Contact {
-	switch o := other.(type) {
-	case *BoxCollider:
-		return boxVsPointContact(o, p)
-	case *CylinderCollider:
-		return cylinderVsPointContact(o, p)
-	case *PlaneCollider:
-		contact := pointVsPlaneContact(p, o)
-		return contact
-	case *PointCollider:
-		return pointVsPointContact(p, o)
-	default:
-		return Contact{}
-	}
+	return Collide(p, other)
+}
+
+func (p *PointCollider) DistanceTo(other Collider) float32 {
+	return Distance(p, other)
 }
 
 func (p *PointCollider) Kind() ShapeKind {
 	return ShapePoint
-}
-
-func (p *PointCollider) DistanceTo(other Collider) float32 {
-	switch o := other.(type) {
-	case *BoxCollider:
-		return pointVsBoxDistance(p, o)
-	case *CylinderCollider:
-		return pointVsCylinderDistance(p, o)
-	case *PlaneCollider:
-		return pointVsPlaneDistance(p, o)
-	case *PointCollider:
-		return pointVsPointDistance(p, o)
-	default:
-		return infiniteDistance()
-	}
 }
 
 func (p *PointCollider) GetPosition() rl.Vector3 {

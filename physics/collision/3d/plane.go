@@ -28,24 +28,11 @@ func (p *PlaneCollider) Kind() ShapeKind {
 
 // Collide returns contact between plane and another collider.
 func (p *PlaneCollider) Collide(other Collider) Contact {
-	switch c := other.(type) {
-	case *CylinderCollider:
-		contact := cylinderVsPlaneContact(c, p)
-		contact.Normal = rl.Vector3Negate(contact.Normal)
-		return contact
-	case *BoxCollider:
-		contact := boxVsPlaneContact(c, p)
-		contact.Normal = rl.Vector3Negate(contact.Normal)
-		return contact
-	case *PointCollider:
-		contact := pointVsPlaneContact(c, p)
-		contact.Normal = rl.Vector3Negate(contact.Normal)
-		return contact
-	case *PlaneCollider:
-		return Contact{}
-	default:
-		return Contact{}
-	}
+	return Collide(p, other)
+}
+
+func (p *PlaneCollider) DistanceTo(other Collider) float32 {
+	return Distance(p, other)
 }
 
 // BoundingBox returns enclosing AABB of plane rectangle.
@@ -86,21 +73,6 @@ func (p *PlaneCollider) GetPosition() rl.Vector3 {
 // SetPosition sets plane position anchor.
 func (p *PlaneCollider) SetPosition(pos rl.Vector3) {
 	p.Position = pos
-}
-
-func (p *PlaneCollider) DistanceTo(other Collider) float32 {
-	switch c := other.(type) {
-	case *CylinderCollider:
-		return cylinderVsPlaneDistance(c, p)
-	case *BoxCollider:
-		return boxVsPlaneDistance(c, p)
-	case *PointCollider:
-		return pointVsPlaneDistance(c, p)
-	case *PlaneCollider:
-		return planeVsPlaneDistance(c, p)
-	default:
-		return infiniteDistance()
-	}
 }
 
 var _ Collider = (*PlaneCollider)(nil)
