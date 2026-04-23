@@ -5,10 +5,6 @@ import (
 )
 
 // ResolveMTV applies the contact minimum translation vector to a SpatialCollider.
-//
-// It assumes hit.Normal and hit.Penetration follow the contact contract:
-// normal points in the direction that moves the resolved object out of overlap,
-// and penetration is non-negative.
 func ResolveMTV(active SpatialCollider, hit Contact) {
 	if !hit.Hit || hit.Penetration <= 0 {
 		return

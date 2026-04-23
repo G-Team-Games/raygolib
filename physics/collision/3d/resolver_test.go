@@ -17,7 +17,6 @@ func TestResolveMultiMTV(t *testing.T) {
 	b2 := NewBoxColliderV(rl.NewVector3(0.5, 0.5, 0.5), rl.NewVector3(2, 2, 2))
 	
 	others := []Collider{b1, b2}
-
 	resolved := ResolveMultiMTV(active, others, 10)
 
 	if !resolved {
