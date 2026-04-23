@@ -98,23 +98,8 @@ func (g *Game) Update(dt float32) error {
 				g.contact = contact
 				hitThisIter = true
 				
-				// type assertion since Collider interface doesn't define Get/SetPosition directly
-				var getPos func() rl.Vector3
-				var setPos func(rl.Vector3)
-				
-				switch c := activeCol.(type) {
-				case *col3d.BoxCollider:
-					getPos, setPos = c.GetPosition, c.SetPosition
-				case *col3d.CylinderCollider:
-					getPos, setPos = c.GetPosition, c.SetPosition
-				case *col3d.PointCollider:
-					getPos, setPos = c.GetPosition, c.SetPosition
-				case *col3d.PlaneCollider:
-					getPos, setPos = c.GetPosition, c.SetPosition
-				}
-
 				// Resolve collision using MTV (Minimum Translation Vector)
-				col3d.ResolveByMTV(getPos, setPos, contact)
+				col3d.ResolveMTV(activeCol.(col3d.SpatialCollider), contact)
 			}
 		}
 		

@@ -52,14 +52,15 @@ func Distance(a, b Collider) float32 {
 	return infiniteDistance()
 }
 
-// ResolveByMTV applies the contact minimum translation vector to a position.
-//
-// It assumes hit.Normal and hit.Penetration follow the contact contract:
-// normal points in the direction that moves the resolved object out of overlap,
-// and penetration is non-negative.
-func ResolveByMTV(getPosition func() rl.Vector3, setPosition func(rl.Vector3), hit Contact) {
-	if !hit.Hit || hit.Penetration <= 0 {
-		return
-	}
-	setPosition(rl.Vector3Add(getPosition(), rl.Vector3Scale(hit.Normal, hit.Penetration)))
+// Spatial represents an object with a readable and writable 3D position.
+type Spatial interface {
+	GetPosition() rl.Vector3
+	SetPosition(rl.Vector3)
 }
+
+// SpatialCollider represents a collider that has a 3D position in space.
+type SpatialCollider interface {
+	Collider
+	Spatial
+}
+

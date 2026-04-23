@@ -77,7 +77,7 @@ func TestCylinderVsBoxContactAndResolve(t *testing.T) {
 	}
 
 	prev := cylinder.GetPosition()
-	ResolveByMTV(cylinder.GetPosition, cylinder.SetPosition, hit)
+	ResolveMTV(cylinder, hit)
 	next := cylinder.GetPosition()
 	if prev == next {
 		t.Fatalf("expected position change after resolve")
@@ -227,7 +227,7 @@ func TestDistance_UnsupportedPairReturnsInf(t *testing.T) {
 	}
 }
 
-func TestResolveByMTV_ReducesOverlap_BoxBoxInOneStep(t *testing.T) {
+func TestResolveMTV_ReducesOverlap_BoxBoxInOneStep(t *testing.T) {
 	a := NewBoxColliderV(rl.NewVector3(0, 0, 0), rl.NewVector3(2, 2, 2))
 	b := NewBoxColliderV(rl.NewVector3(1.5, 0, 0), rl.NewVector3(2, 2, 2))
 
@@ -239,7 +239,7 @@ func TestResolveByMTV_ReducesOverlap_BoxBoxInOneStep(t *testing.T) {
 		t.Fatalf("expected penetration > 0, got %f", hit.Penetration)
 	}
 
-	ResolveByMTV(a.GetPosition, a.SetPosition, hit)
+	ResolveMTV(a, hit)
 	after := Collide(a, b)
 
 	if !after.Hit {
