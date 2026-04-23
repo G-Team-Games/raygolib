@@ -2,7 +2,6 @@ package assets
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -18,84 +17,155 @@ type ResourceLoader[T any] struct {
 	Unload func(T)
 }
 
+type cacheEntry[T any] struct {
+	resource *Resource[T]
+	loading  bool
+	cond     *sync.Cond
+}
+
 type ResourceCache[T any] struct {
 	loader ResourceLoader[T]
-	items  map[string]*Resource[T]
-	mu     sync.RWMutex
+	items  map[string]*cacheEntry[T]
+	mu     sync.Mutex
 }
 
 func NewResourceCache[T any](loader ResourceLoader[T]) *ResourceCache[T] {
-	return &ResourceCache[T]{loader: loader, items: make(map[string]*Resource[T])}
+	return &ResourceCache[T]{loader: loader, items: make(map[string]*cacheEntry[T])}
 }
 
 func (c *ResourceCache[T]) Load(key string) (*Resource[T], error) {
-	c.mu.RLock()
-	if r, ok := c.items[key]; ok {
-		c.mu.RUnlock()
-		return r, nil
-	}
-	c.mu.RUnlock()
-
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	if e, ok := c.items[key]; ok {
+		for e.loading {
+			e.cond.Wait()
+		}
+		if e.resource != nil {
+			res := e.resource
+			c.mu.Unlock()
+			return res, nil
+		}
+	}
+
+	e := &cacheEntry[T]{loading: true}
+	e.cond = sync.NewCond(&c.mu)
+	c.items[key] = e
+	c.mu.Unlock()
 
 	val, err := c.loader.Load(key)
 	if err != nil {
+		c.mu.Lock()
+		delete(c.items, key)
+		e.loading = false
+		e.cond.Broadcast()
+		c.mu.Unlock()
 		return nil, err
 	}
 
 	res := &Resource[T]{Data: val}
-	c.items[key] = res
+
+	c.mu.Lock()
+	e.resource = res
+	e.loading = false
+	e.cond.Broadcast()
+	c.mu.Unlock()
+
 	return res, nil
 }
 
 func (c *ResourceCache[T]) Get(key string) (*Resource[T], bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	r, ok := c.items[key]
-	return r, ok
-}
-
-func (c *ResourceCache[T]) Reload(key string) error {
-	c.mu.RLock()
-	old, ok := c.items[key]
-	c.mu.RUnlock()
-	if !ok {
-		return fmt.Errorf("asset not loaded: %s", key)
-	}
-
-	newVal, err := c.loader.Load(key)
-	if err != nil {
-		return err
-	}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.loader.Unload(old.Data)
-	old.Data = newVal
+	e, ok := c.items[key]
+	if !ok || e.loading || e.resource == nil {
+		return nil, false
+	}
+
+	return e.resource, true
+}
+
+func (c *ResourceCache[T]) Reload(key string) error {
+	c.mu.Lock()
+	e, ok := c.items[key]
+	if !ok {
+		c.mu.Unlock()
+		return fmt.Errorf("asset not loaded: %s", key)
+	}
+
+	for e.loading {
+		e.cond.Wait()
+	}
+	if e.resource == nil {
+		c.mu.Unlock()
+		return fmt.Errorf("asset not loaded: %s", key)
+	}
+
+	e.loading = true
+	oldRes := e.resource
+	c.mu.Unlock()
+
+	newVal, err := c.loader.Load(key)
+	if err != nil {
+		c.mu.Lock()
+		e.loading = false
+		e.cond.Broadcast()
+		c.mu.Unlock()
+		return err
+	}
+
+	oldVal := oldRes.Data
+	oldRes.Data = newVal
+
+	c.mu.Lock()
+	e.loading = false
+	e.cond.Broadcast()
+	c.mu.Unlock()
+
+	c.loader.Unload(oldVal)
 	return nil
 }
 
 func (c *ResourceCache[T]) Unload(key string) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if r, ok := c.items[key]; ok {
-		c.loader.Unload(r.Data)
-		delete(c.items, key)
+	e, ok := c.items[key]
+	if !ok {
+		c.mu.Unlock()
+		return
+	}
+	for e.loading {
+		e.cond.Wait()
+	}
+	delete(c.items, key)
+	res := e.resource
+	c.mu.Unlock()
+
+	if res != nil {
+		c.loader.Unload(res.Data)
 	}
 }
 
 func (c *ResourceCache[T]) Clear() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	for k, r := range c.items {
-		c.loader.Unload(r.Data)
+	toUnload := make([]T, 0, len(c.items))
+	for k, e := range c.items {
+		for e.loading {
+			e.cond.Wait()
+		}
+		if e.resource != nil {
+			toUnload = append(toUnload, e.resource.Data)
+		}
 		delete(c.items, k)
+	}
+	c.mu.Unlock()
+
+	for _, item := range toUnload {
+		c.loader.Unload(item)
 	}
 }
 
 type AssetManager struct {
+	resolver Resolver
+
 	models   *ResourceCache[rl.Model]
 	textures *ResourceCache[rl.Texture2D]
 	images   *ResourceCache[rl.Image]
@@ -112,13 +182,24 @@ func Init() {
 }
 
 func NewAssetManager() *AssetManager {
-	am := &AssetManager{}
+	return NewAssetManagerWithResolver(NewSingleRootResolver(assetsBasePath))
+}
+
+func NewAssetManagerWithResolver(resolver Resolver) *AssetManager {
+	if resolver == nil {
+		resolver = NewFixedDirsResolver(assetsBasePath)
+	}
+
+	am := &AssetManager{resolver: resolver}
 
 	// Here is the set of actual loading functions, those are used by generic ResourceCache.Load() method
 
 	am.models = NewResourceCache(ResourceLoader[rl.Model]{
 		Load: func(key string) (rl.Model, error) {
-			path := filepath.Join(assetsBasePath, "models", key)
+			path, err := am.resolvePath(KindModel, key)
+			if err != nil {
+				return rl.Model{}, err
+			}
 			m := rl.LoadModel(path)
 			if m.MeshCount == 0 {
 				return rl.Model{}, fmt.Errorf("failed to load model: %s", key)
@@ -130,7 +211,10 @@ func NewAssetManager() *AssetManager {
 
 	am.textures = NewResourceCache(ResourceLoader[rl.Texture2D]{
 		Load: func(key string) (rl.Texture2D, error) {
-			path := filepath.Join(assetsBasePath, "textures", key)
+			path, err := am.resolvePath(KindTexture, key)
+			if err != nil {
+				return rl.Texture2D{}, err
+			}
 			tex := rl.LoadTexture(path)
 			if tex.ID == 0 {
 				return rl.Texture2D{}, fmt.Errorf("failed to load texture: %s", key)
@@ -142,7 +226,10 @@ func NewAssetManager() *AssetManager {
 
 	am.images = NewResourceCache(ResourceLoader[rl.Image]{
 		Load: func(key string) (rl.Image, error) {
-			path := filepath.Join(assetsBasePath, "images", key)
+			path, err := am.resolvePath(KindImage, key)
+			if err != nil {
+				return rl.Image{}, err
+			}
 			img := rl.LoadImage(path)
 			if img.Data == nil {
 				return rl.Image{}, fmt.Errorf("failed to load image: %s", key)
@@ -154,7 +241,10 @@ func NewAssetManager() *AssetManager {
 
 	am.sounds = NewResourceCache(ResourceLoader[rl.Sound]{
 		Load: func(key string) (rl.Sound, error) {
-			path := filepath.Join(assetsBasePath, "audio", key)
+			path, err := am.resolvePath(KindSound, key)
+			if err != nil {
+				return rl.Sound{}, err
+			}
 			s := rl.LoadSound(path)
 			// Note: raylib Sound detection differs; check Stream.Buffer or ID fields as needed
 			return s, nil
@@ -164,7 +254,10 @@ func NewAssetManager() *AssetManager {
 
 	am.music = NewResourceCache(ResourceLoader[rl.Music]{
 		Load: func(key string) (rl.Music, error) {
-			path := filepath.Join(assetsBasePath, "audio", key)
+			path, err := am.resolvePath(KindMusic, key)
+			if err != nil {
+				return rl.Music{}, err
+			}
 			m := rl.LoadMusicStream(path)
 			return m, nil
 		},
@@ -174,7 +267,10 @@ func NewAssetManager() *AssetManager {
 	am.fonts = NewResourceCache(ResourceLoader[rl.Font]{
 		Load: func(key string) (rl.Font, error) {
 			parts := strings.SplitN(key, ":", 2)
-			path := filepath.Join(assetsBasePath, "fonts", parts[0])
+			path, err := am.resolvePath(KindFont, parts[0])
+			if err != nil {
+				return rl.Font{}, err
+			}
 			size := int32(16) // default size, TODO: create a const for that
 			if len(parts) == 2 {
 				var s int
@@ -196,8 +292,15 @@ func NewAssetManager() *AssetManager {
 			if len(parts) != 2 {
 				return rl.Shader{}, fmt.Errorf("invalid shader key: %s", key)
 			}
-			vs := filepath.Join(assetsBasePath, "shaders", parts[0])
-			fs := filepath.Join(assetsBasePath, "shaders", parts[1])
+
+			vs, err := am.resolvePath(KindShader, parts[0])
+			if err != nil {
+				return rl.Shader{}, err
+			}
+			fs, err := am.resolvePath(KindShader, parts[1])
+			if err != nil {
+				return rl.Shader{}, err
+			}
 			s := rl.LoadShader(vs, fs)
 			if s.ID == 0 {
 				return rl.Shader{}, fmt.Errorf("failed to load shader: %s", key)
@@ -208,6 +311,23 @@ func NewAssetManager() *AssetManager {
 	})
 
 	return am
+}
+
+func (am *AssetManager) resolvePath(kind Kind, key string) (string, error) {
+	if am.resolver == nil {
+		return "", fmt.Errorf("assets resolver is nil")
+	}
+
+	path, err := am.resolver.Resolve(kind, key)
+	if err != nil {
+		return "", err
+	}
+
+	if path == "" {
+		return "", fmt.Errorf("empty resolved path for kind=%q key=%q", kind, key)
+	}
+
+	return path, nil
 }
 
 // Model wrappers

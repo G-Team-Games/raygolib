@@ -56,7 +56,7 @@ type Option func(*Config) error
 
 func DefaultConfig() Config {
 	return Config{
-		Resolver:      NewFixedDirsResolver(assetsBasePath),
+		Resolver:      NewSingleRootResolver(assetsBasePath),
 		Rules:         nil,
 		HotReload:     false,
 		WatchDebounce: 100 * time.Millisecond,
@@ -85,7 +85,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 
 	return &Manager{
-		AssetManager: NewAssetManager(),
+		AssetManager: NewAssetManagerWithResolver(cfg.Resolver),
 		cfg:          cfg,
 	}, nil
 }
@@ -207,7 +207,7 @@ func (r *FixedDirsResolver) KeysForPath(path string) []AssetRef {
 	norm := filepath.Clean(path)
 	for kind, dir := range r.dirs {
 		prefix := filepath.Join(r.root, dir) + string(filepath.Separator)
-		if after, ok :=strings.CutPrefix(norm, prefix); ok  {
+		if after, ok := strings.CutPrefix(norm, prefix); ok {
 			return []AssetRef{{Kind: kind, Key: after}}
 		}
 	}
