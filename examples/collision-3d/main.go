@@ -88,10 +88,13 @@ func (g *Game) Draw() {
 	rl.ClearBackground(rl.RayWhite)
 	rl.BeginMode3D(g.camera)
 	rl.DrawGrid(20, 1)
-	g.drawBox()
-	g.drawCylinder()
-	g.drawPlane()
-	g.drawPositionPoints()
+	for i, collider := range g.colliders() {
+		fill := rl.Fade(g.states[i].color, 0.30)
+		col3d.DrawCollider(collider, fill)
+		col3d.DrawColliderWires(collider, g.states[i].color)
+	}
+
+	col3d.DrawCollider(g.activeCollider(), rl.Orange)
 	rl.EndMode3D()
 	g.drawUI()
 }
@@ -182,69 +185,6 @@ func (g *Game) moveActive(dt float32) {
 
 }
 
-func (g *Game) drawBox() {
-	fill := rl.Fade(g.states[0].color, 0.30)
-	if g.active == 0 {
-		fill = rl.Fade(rl.Orange, 0.40)
-	}
-	rl.DrawCubeV(g.box.Center(), g.box.Size, fill)
-	rl.DrawCubeWiresV(g.box.Center(), g.box.Size, g.states[0].color)
-}
-
-func (g *Game) drawCylinder() {
-	fill := rl.Fade(g.states[1].color, 0.30)
-	if g.active == 1 {
-		fill = rl.Fade(rl.Orange, 0.40)
-	}
-	rl.DrawCylinder(g.cyl.Position, g.cyl.Radius, g.cyl.Radius, g.cyl.Height, 24, fill)
-	rl.DrawCylinderWires(g.cyl.Position, g.cyl.Radius, g.cyl.Radius, g.cyl.Height, 24, g.states[1].color)
-}
-
-func (g *Game) drawPlane() {
-	fill := rl.Fade(g.states[3].color, 0.30)
-	if g.active == 3 {
-		fill = rl.Fade(rl.Orange, 0.40)
-	}
-
-	// Plane is a 2D quad in 3D space
-	// We extract its BoundingBox corners for drawing since DrawPlane assumes ground Y=0
-	box := g.plane.BoundingBox()
-	size := rl.Vector3Subtract(box.Max, box.Min)
-
-	// Ensure minimum thickness so rl.DrawCubeV renders something visible (as plane has 0 depth)
-	if size.X == 0 {
-		size.X = 0.01
-	}
-	if size.Y == 0 {
-		size.Y = 0.01
-	}
-	if size.Z == 0 {
-		size.Z = 0.01
-	}
-
-	center := rl.Vector3Add(box.Min, rl.Vector3Scale(size, 0.5))
-
-	rl.DrawCubeV(center, size, fill)
-	rl.DrawCubeWiresV(center, size, g.states[3].color)
-}
-
-func (g *Game) drawPositionPoints() {
-	boxPos := g.box.GetPosition()
-	cylPos := g.cyl.GetPosition()
-	ptPos := g.point.GetPosition()
-	planePos := g.plane.GetPosition()
-
-	rl.DrawSphere(boxPos, 0.10, rl.DarkBlue)
-	rl.DrawSphere(ptPos, 0.10, rl.Red)
-	rl.DrawSphere(cylPos, 0.10, rl.DarkGreen)
-	rl.DrawSphere(planePos, 0.10, rl.Purple)
-
-	rl.DrawLine3D(boxPos, rl.Vector3Add(boxPos, rl.NewVector3(0, 0.45, 0)), rl.DarkBlue)
-	rl.DrawLine3D(cylPos, rl.Vector3Add(cylPos, rl.NewVector3(0, 0.45, 0)), rl.DarkGreen)
-	rl.DrawLine3D(ptPos, rl.Vector3Add(ptPos, rl.NewVector3(0, 0.45, 0)), rl.Red)
-	rl.DrawLine3D(planePos, rl.Vector3Add(planePos, rl.NewVector3(0, 0.45, 0)), rl.Purple)
-}
-
 func (g *Game) drawUI() {
 	active := g.states[g.active].name
 	camPos := g.camera.Position
@@ -293,7 +233,7 @@ func main() {
 	game := rgl.InitGameWithConfig(NewGame(), &rgl.InitGameConfig{
 		ScreenWidth:  1280,
 		ScreenHeight: 720,
-		WindowTitle:  "raygolib example - collision-3d",
+		WindowTitle:  "3D collision demo",
 		TargetFPS:    60,
 	})
 
