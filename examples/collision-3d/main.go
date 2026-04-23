@@ -56,8 +56,8 @@ func (g *Game) colliders() []col3d.Collider {
 	return []col3d.Collider{g.box, g.cyl, g.point, g.plane}
 }
 
-func (g *Game) activeCollider() col3d.Collider {
-	return g.colliders()[g.active]
+func (g *Game) activeCollider() col3d.SpatialCollider {
+	return g.colliders()[g.active].(col3d.SpatialCollider)
 }
 
 func (g *Game) Init() error {
@@ -76,38 +76,10 @@ func (g *Game) Update(dt float32) error {
 	}
 
 	g.moveActive(dt)
-
 	g.contact = col3d.Contact{}
-	
 	activeCol := g.activeCollider()
 
-	// Multi-iteration collision solver to handle overlapping push-backs
-	// If active is pushed out of Box into Cylinder, next iter pushes out of Cylinder
-	for range 4 {
-		hitThisIter := false
-		
-		for i, other := range g.colliders() {
-			if i == g.active {
-				continue // Skip self
-			}
-
-			// Compute hit from active towards other
-			contact := activeCol.Collide(other)
-			
-			if contact.Hit {
-				g.contact = contact
-				hitThisIter = true
-				
-				// Resolve collision using MTV (Minimum Translation Vector)
-				col3d.ResolveMTV(activeCol.(col3d.SpatialCollider), contact)
-			}
-		}
-		
-		// If no collisions found in this pass, we are fully resolved
-		if !hitThisIter {
-			break
-		}
-	}
+	col3d.ResolveMultiMTV(activeCol, g.colliders(), 4)
 
 	return nil
 }
@@ -238,14 +210,20 @@ func (g *Game) drawPlane() {
 	// We extract its BoundingBox corners for drawing since DrawPlane assumes ground Y=0
 	box := g.plane.BoundingBox()
 	size := rl.Vector3Subtract(box.Max, box.Min)
-	
+
 	// Ensure minimum thickness so rl.DrawCubeV renders something visible (as plane has 0 depth)
-	if size.X == 0 { size.X = 0.01 }
-	if size.Y == 0 { size.Y = 0.01 }
-	if size.Z == 0 { size.Z = 0.01 }
-	
+	if size.X == 0 {
+		size.X = 0.01
+	}
+	if size.Y == 0 {
+		size.Y = 0.01
+	}
+	if size.Z == 0 {
+		size.Z = 0.01
+	}
+
 	center := rl.Vector3Add(box.Min, rl.Vector3Scale(size, 0.5))
-	
+
 	rl.DrawCubeV(center, size, fill)
 	rl.DrawCubeWiresV(center, size, g.states[3].color)
 }
@@ -294,12 +272,10 @@ func (g *Game) drawUI() {
 			pos = c.GetPosition()
 		}
 		state := g.states[i]
-		
+
 		if i == g.active {
 			rl.DrawText(fmt.Sprintf("%s pos: (%.2f, %.2f, %.2f) [ACTIVE]", state.name, pos.X, pos.Y, pos.Z), 16, y, 20, state.color)
 		} else {
-			// Calculate minimal distance between volumes.
-			// Distance is 0 when touching or overlapping.
 			dist := activeCol.DistanceTo(col)
 			rl.DrawText(fmt.Sprintf("%s pos: (%.2f, %.2f, %.2f) | Dist: %.2f", state.name, pos.X, pos.Y, pos.Z, dist), 16, y, 20, state.color)
 		}
