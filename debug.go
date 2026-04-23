@@ -33,6 +33,18 @@ type debugWrapper struct {
 	backend   irl.DebugBackend
 }
 
+func (d *debugWrapper) Init() error {
+	return d.next.Init()
+}
+
+func (d *debugWrapper) Close() error {
+	return d.next.Close()
+}
+
+func (d *debugWrapper) Unwrap() Game {
+	return d.next
+}
+
 func (d *debugWrapper) Update(dt float32) error {
 	if d.toggleKey != 0 && d.backend.IsKeyPressed(d.toggleKey) {
 		d.debug.Toggle()
@@ -108,8 +120,18 @@ func DebugMiddlewareWithConfig(cfg DebugConfig) Middleware {
 		}
 		debugInstance = debug
 
-		if g, ok := next.(DebugAware); ok {
-			g.SetDebug(debug)
+		// Walk the middleware chain to find the DebugAware implementation
+		current := next
+		for current != nil {
+			if g, ok := current.(DebugAware); ok {
+				g.SetDebug(debug)
+				break
+			}
+			if w, ok := current.(Wrapper); ok {
+				current = w.Unwrap()
+			} else {
+				current = nil
+			}
 		}
 
 		return &debugWrapper{

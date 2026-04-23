@@ -34,3 +34,6 @@ go.work.sum
 # Sonarqube
 .scannerwork/
 
+# Opencode
+AGENTS.md
+

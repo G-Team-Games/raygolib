@@ -6,13 +6,20 @@ import (
 
 // Main game interface - used to implement game logic
 type Game interface {
+	Init() error
 	Update(dt float32) error
 	Draw()
+	Close() error
 }
 
 // Middleware type - used to wrap game with additional functionality
 // (like debug overlay)
 type Middleware func(Game) Game
+
+// Wrapper interface allows walking the middleware chain
+type Wrapper interface {
+	Unwrap() Game
+}
 
 // Game initializer - used to configure and run game
 type gameInitializer struct {
@@ -54,6 +61,11 @@ func (gi *gameInitializer) Run() error {
 	for _, m := range gi.middlewares {
 		gi.game = m(gi.game)
 	}
+
+	if err := gi.game.Init(); err != nil {
+		return err
+	}
+	defer gi.game.Close()
 
 	for !gi.backend.WindowShouldClose() {
 		dt := gi.backend.GetFrameTime()

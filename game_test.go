@@ -15,6 +15,14 @@ type fakeGameForGameTests struct {
 	drawCalls   int
 }
 
+func (f *fakeGameForGameTests) Init() error {
+	return nil
+}
+
+func (f *fakeGameForGameTests) Close() error {
+	return nil
+}
+
 func (f *fakeGameForGameTests) Update(dt float32) error {
 	f.updateCalls++
 	f.updateDts = append(f.updateDts, dt)
@@ -31,6 +39,16 @@ type orderMiddleware struct {
 	next Game
 }
 
+func (m *orderMiddleware) Init() error {
+	*m.log = append(*m.log, m.name+"-init")
+	return m.next.Init()
+}
+
+func (m *orderMiddleware) Close() error {
+	*m.log = append(*m.log, m.name+"-close")
+	return m.next.Close()
+}
+
 func (m *orderMiddleware) Update(dt float32) error {
 	*m.log = append(*m.log, m.name+"-update")
 	return m.next.Update(dt)
@@ -43,6 +61,16 @@ func (m *orderMiddleware) Draw() {
 
 type orderGame struct {
 	log *[]string
+}
+
+func (g *orderGame) Init() error {
+	*g.log = append(*g.log, "game-init")
+	return nil
+}
+
+func (g *orderGame) Close() error {
+	*g.log = append(*g.log, "game-close")
+	return nil
 }
 
 func (g *orderGame) Update(dt float32) error {
@@ -174,12 +202,18 @@ func TestWithMiddlewareSuite(t *testing.T) {
 		}
 
 		expected := []string{
+			"m2-init",
+			"m1-init",
+			"game-init",
 			"m2-update",
 			"m1-update",
 			"game-update",
 			"m2-draw",
 			"m1-draw",
 			"game-draw",
+			"m2-close",
+			"m1-close",
+			"game-close",
 		}
 
 		if !reflect.DeepEqual(log, expected) {

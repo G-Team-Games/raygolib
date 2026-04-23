@@ -7,6 +7,14 @@ import (
 
 type Game struct{}
 
+func (g *Game) Init() error {
+	return nil
+}
+
+func (g *Game) Close() error {
+	return nil
+}
+
 func (g *Game) Update(dt float32) error {
 	return nil
 }
