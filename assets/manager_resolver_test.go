@@ -1,4 +1,4 @@
-package assets
+package rga
 
 import (
 	"path/filepath"
