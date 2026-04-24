@@ -124,3 +124,84 @@ func TestSingleRootResolver(t *testing.T) {
 		t.Fatalf("unexpected roots: %v", roots)
 	}
 }
+
+func TestPresetSplitDirs(t *testing.T) {
+	m, err := NewManager(WithPreset(PresetSplitDirs, "assets"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := m.Config()
+	if cfg.Resolver == nil {
+		t.Fatalf("expected resolver")
+	}
+
+	path, err := cfg.Resolver.Resolve(KindTexture, "player.png")
+	if err != nil {
+		t.Fatalf("unexpected resolve error: %v", err)
+	}
+	want := filepath.Join("assets", "textures", "player.png")
+	if path != want {
+		t.Fatalf("unexpected path. got=%q want=%q", path, want)
+	}
+}
+
+func TestPresetSingleDir(t *testing.T) {
+	m, err := NewManager(WithPreset(PresetSingleDir, "resources"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := m.Config()
+	if cfg.Resolver == nil {
+		t.Fatalf("expected resolver")
+	}
+
+	path, err := cfg.Resolver.Resolve(KindTexture, "player.png")
+	if err != nil {
+		t.Fatalf("unexpected resolve error: %v", err)
+	}
+	want := filepath.Join("resources", "player.png")
+	if path != want {
+		t.Fatalf("unexpected path. got=%q want=%q", path, want)
+	}
+}
+
+func TestPresetCustom(t *testing.T) {
+	m, err := NewManager(
+		WithPreset(PresetCustom, ""),
+		WithRule(KindRule{Kind: KindTexture, Include: []string{"**/*.png"}, Priority: 10}),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg := m.Config()
+	if len(cfg.Rules) != 1 {
+		t.Fatalf("expected 1 rule, got %d", len(cfg.Rules))
+	}
+	if cfg.Rules[0].Kind != KindTexture {
+		t.Fatalf("expected texture rule")
+	}
+}
+
+func TestPresetUnknown(t *testing.T) {
+	_, err := NewManager(WithPreset("unknown-preset", "assets"))
+	if err == nil {
+		t.Fatalf("expected error for unknown preset")
+	}
+}
+
+func TestPresetEmptyRootSplitDirs(t *testing.T) {
+	_, err := NewManager(WithPreset(PresetSplitDirs, ""))
+	if err == nil {
+		t.Fatalf("expected error for empty root")
+	}
+}
+
+func TestPresetEmptyRootSingleDir(t *testing.T) {
+	_, err := NewManager(WithPreset(PresetSingleDir, ""))
+	if err == nil {
+		t.Fatalf("expected error for empty root")
+	}
+}

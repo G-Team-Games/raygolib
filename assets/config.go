@@ -26,6 +26,12 @@ const (
 	ThreadPolicyQueueOnly
 )
 
+const (
+	PresetSplitDirs string = "split-dirs"
+	PresetSingleDir string = "single-dir"
+	PresetCustom   string = "custom"
+)
+
 type AssetRef struct {
 	Kind Kind
 	Key  string
@@ -82,12 +88,17 @@ func NewManager(opts ...Option) (*Manager, error) {
 		}
 	}
 
-	if cfg.Resolver == nil {
-		return nil, fmt.Errorf("assets: resolver is required")
+	if cfg.Resolver == nil && len(cfg.Rules) == 0 {
+		return nil, fmt.Errorf("assets: resolver or rules required")
+	}
+
+	var resolver Resolver = cfg.Resolver
+	if resolver == nil {
+		resolver = NewSingleRootResolver("assets")
 	}
 
 	return &Manager{
-		AssetManager: NewAssetManagerWithResolver(cfg.Resolver),
+		AssetManager: NewAssetManagerWithResolver(resolver),
 		cfg:          cfg,
 		ownerGID:     currentGID(),
 		opQueue:      make(chan func(), 1024),
@@ -172,6 +183,29 @@ func WithThreadPolicy(policy ThreadPolicy) Option {
 		default:
 			return fmt.Errorf("assets: invalid thread policy: %d", policy)
 		}
+	}
+}
+
+func WithPreset(preset string, root string) Option {
+	return func(cfg *Config) error {
+		switch preset {
+		case PresetSplitDirs:
+			if root == "" {
+				return fmt.Errorf("assets: root required for preset %q", preset)
+			}
+			cfg.Resolver = NewFixedDirsResolver(root)
+		case PresetSingleDir:
+			if root == "" {
+				return fmt.Errorf("assets: root required for preset %q", preset)
+			}
+			cfg.Resolver = NewSingleRootResolver(root)
+		case PresetCustom:
+			cfg.Resolver = nil
+		default:
+			return fmt.Errorf("assets: unknown preset %q, valid: %q, %q, %q",
+				preset, PresetSplitDirs, PresetSingleDir, PresetCustom)
+		}
+		return nil
 	}
 }
 
