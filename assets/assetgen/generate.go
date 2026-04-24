@@ -9,35 +9,40 @@ import (
 	"sort"
 	"strings"
 	"text/template"
-
-	"gopkg.in/yaml.v3"
 )
 
+// Config controls asset generation behavior.
 type Config struct {
-	Root         string
-	Output       string
-	Package      string
-	ConfigFile   string
-	Naming       string
-	Prefix       string
-	Kinds        string
-	Include      string
-	Exclude      string
-	StripPrefix  string
-	TemplateFile string
+	Root         string       // Root directory containing asset subdirectories
+	Output       string       // Output file path
+	Package      string       // Go package name for generated file
+	ConfigFile   string       // JSON config file (overrides flags)
+	Naming       string       // Naming style: pascal, camel, snake, upper_snake
+	Prefix       string       // Constant prefix (optional)
+	Kinds        string       // Comma-separated kinds to include
+	KindsConfig  []KindConfig // Per-kind configuration (overrides Kinds string)
+	Include      string       // Comma-separated glob patterns to include
+	Exclude      string       // Comma-separated glob patterns to exclude
+	StripPrefix  string       // Path prefix to strip from keys
+	TemplateFile string       // Custom Go template file path
+	SingleRoot   bool         // Scan root directory instead of subdirs for each kind
+	Glob         string       // File pattern filter (pipe-separated, e.g. "*.ttf|*.otf")
 }
 
+// DefaultConfig returns sensible defaults for quick setup.
 func DefaultConfig() Config {
 	return Config{
-		Naming: "pascal",
-		Root:   "assets",
-		Output: "zz_generated_assets.go",
+		Naming:  "pascal",
+		Root:    "assets",
+		Output:  "zz_generated_assets.go",
 		Package: "gameassets",
 	}
 }
 
+// Kind represents the type of asset (texture, sound, model, etc.).
 type Kind string
 
+// Asset kind constants.
 const (
 	KindModel   Kind = "model"
 	KindTexture Kind = "texture"
@@ -48,12 +53,14 @@ const (
 	KindShader  Kind = "shader"
 )
 
+// KindDir maps a Kind to its default directory name and generated type name.
 type KindDir struct {
 	Kind     Kind
 	Dir      string
 	TypeName string
 }
 
+// DefaultKindDirs provides conventional mappings for common asset layouts.
 var DefaultKindDirs = []KindDir{
 	{KindModel, "models", "ModelName"},
 	{KindTexture, "textures", "TextureName"},
@@ -66,25 +73,28 @@ var DefaultKindDirs = []KindDir{
 
 type KindConfig struct {
 	Kind     Kind
-	Glob     string   `yaml:"glob" json:"glob"`
-	Include  []string `yaml:"include" json:"include"`
-	Exclude  []string `yaml:"exclude" json:"exclude"`
-	Dir      string   `yaml:"dir" json:"dir"`
-	Type     string   `yaml:"type" json:"type"`
-	Priority int      `yaml:"priority" json:"priority"`
+	Glob     string   `json:"glob,omitempty"`      // File pattern filter (e.g. "*.ttf|*.otf")
+	Include  []string `json:"include,omitempty"`   // Include globs
+	Exclude  []string `json:"exclude,omitempty"`   // Exclude globs
+	Dir      string   `json:"dir,omitempty"`       // Subdirectory (empty = scan root of root)
+	ScanRoot bool     `json:"scan_root,omitempty"` // Also scan root directory for this kind
+	Type     string   `json:"type,omitempty"`
+	Priority int      `json:"priority,omitempty"`
 }
 
 type FileConfig struct {
-	Roots       []string              `yaml:"roots" json:"roots"`
-	Kinds       []KindConfig          `yaml:"kinds" json:"kinds"`
-	Naming      string                `yaml:"naming" json:"naming"`
-	Prefix      string                `yaml:"prefix" json:"prefix"`
-	StripPrefix string                `yaml:"strip_prefix" json:"strip_prefix"`
-	Include     []string              `yaml:"include" json:"include"`
-	Exclude     []string              `yaml:"exclude" json:"exclude"`
-	Output      string                `yaml:"output" json:"output"`
-	Package     string                `yaml:"package" json:"package"`
-	Types       map[string]KindConfig `yaml:"types" json:"types"`
+	Roots       []string              `json:"roots,omitempty"`
+	Kinds       []KindConfig          `json:"kinds,omitempty"`
+	Naming      string                `json:"naming,omitempty"`
+	Prefix      string                `json:"prefix,omitempty"`
+	StripPrefix string                `json:"strip_prefix,omitempty"`
+	Include     []string              `json:"include,omitempty"`
+	Exclude     []string              `json:"exclude,omitempty"`
+	Output      string                `json:"output,omitempty"`
+	Package     string                `json:"package,omitempty"`
+	Types       map[string]KindConfig `json:"types,omitempty"`
+	SingleRoot  bool                  `json:"single_root,omitempty"`
+	Glob        string                `json:"glob,omitempty"`
 }
 
 type Asset struct {
@@ -94,18 +104,21 @@ type Asset struct {
 }
 
 type Category struct {
-	Name      string
-	Kind      Kind
-	TypeName  string
-	Dir       string
-	Assets    []Asset
+	Name     string
+	Kind     Kind
+	TypeName string
+	Dir      string
+	Assets   []Asset
 }
 
 type TemplateData struct {
-	Package   string
-	Types     []Category
+	Package string
+	Types   []Category
 }
 
+// Generate creates asset name constants based on Config settings.
+// It scans the root directory for asset files matching the configured kinds,
+// applies naming rules, and writes typed constants to the output file.
 func Generate(cfg Config) error {
 	if cfg.Package == "" {
 		cfg.Package = "gameassets"
@@ -120,14 +133,8 @@ func Generate(cfg Config) error {
 		if err != nil {
 			return fmt.Errorf("read config: %w", err)
 		}
-		if strings.HasSuffix(cfg.ConfigFile, ".json") {
-			if err := json.Unmarshal(data, &fileCfg); err != nil {
-				return fmt.Errorf("parse json config: %w", err)
-			}
-		} else {
-			if err := yamlLoad(&fileCfg, data); err != nil {
-				return fmt.Errorf("parse yaml config: %w", err)
-			}
+		if err := jsonLoad(&fileCfg, data); err != nil {
+			return fmt.Errorf("parse config file: %w", err)
 		}
 	}
 
@@ -136,7 +143,7 @@ func Generate(cfg Config) error {
 		roots = []string{cfg.Root}
 	}
 
-	kinds := parseKinds(cfg.Kinds, fileCfg.Kinds)
+	kinds := parseKinds(cfg.Kinds, cfg.KindsConfig, fileCfg.Kinds)
 	includes := parseGlobs(cfg.Include, fileCfg.Include)
 	excludes := parseGlobs(cfg.Exclude, fileCfg.Exclude)
 
@@ -147,14 +154,33 @@ func Generate(cfg Config) error {
 		cfg.Output = "zz_generated_assets.go"
 	}
 
-	if cfg.Naming == "pascal" && fileCfg.Naming != "" {
-		cfg.Naming = fileCfg.Naming
+	if cfg.Package == "gameassets" && fileCfg.Package != "" {
+		cfg.Package = fileCfg.Package
 	}
 	if cfg.Prefix == "" {
 		cfg.Prefix = fileCfg.Prefix
 	}
 	if cfg.StripPrefix == "" {
 		cfg.StripPrefix = fileCfg.StripPrefix
+	}
+	if cfg.Naming == "" || cfg.Naming == "pascal" {
+		if fileCfg.Naming != "" {
+			cfg.Naming = fileCfg.Naming
+		}
+	}
+
+	if cfg.SingleRoot {
+		for i := range kinds {
+			kinds[i].ScanRoot = true
+			kinds[i].Dir = ""
+		}
+	}
+	if cfg.Glob != "" {
+		for i := range kinds {
+			if kinds[i].Glob == "" {
+				kinds[i].Glob = cfg.Glob
+			}
+		}
 	}
 
 	namer := newNamer(cfg.Naming, cfg.Prefix)
@@ -169,18 +195,18 @@ func Generate(cfg Config) error {
 		}
 
 		dir := kind.Dir
-		if dir == "" {
+		if dir == "" && !kind.ScanRoot {
 			dir = kind.Kind.DefaultDir()
 		}
 
-		found := false
 		for _, root := range roots {
 			dirPath := filepath.Join(root, dir)
 			if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-				continue
+				if !kind.ScanRoot || dir != "" {
+					continue
+				}
 			}
 			seenDirs[dirPath] = true
-			found = true
 
 			assets, err := scanDir(dirPath, kind, includes, excludes, cfg.StripPrefix, namer)
 			if err != nil {
@@ -195,8 +221,6 @@ func Generate(cfg Config) error {
 					Assets:   assets,
 				})
 			}
-		}
-		if !found {
 		}
 	}
 
@@ -257,6 +281,19 @@ func scanDir(dirPath string, kind KindConfig, includes, excludes []string, strip
 			continue
 		}
 
+		if kind.Glob != "" {
+			matched := false
+			for g := range strings.SplitSeq(kind.Glob, "|") {
+				if ok, _ := filepath.Match(strings.TrimSpace(g), filename); ok {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
 		relPath := filepath.Join(dirPath, filename)
 		if !matchGlobs(relPath, includes, excludes) {
 			continue
@@ -264,7 +301,7 @@ func scanDir(dirPath string, kind KindConfig, includes, excludes []string, strip
 
 		key := filename
 		if stripPrefix != "" {
-			if trimmed := strings.TrimPrefix(key, stripPrefix); trimmed != key {
+			if trimmed, ok := strings.CutPrefix(key, stripPrefix); ok {
 				key = trimmed
 			}
 		}
@@ -322,8 +359,8 @@ func isVowel(r byte) bool {
 }
 
 type namer struct {
-	style   string
-	prefix  string
+	style  string
+	prefix string
 }
 
 func newNamer(style, prefix string) *namer {
@@ -392,11 +429,14 @@ func capitalize(s string) string {
 	return strings.ToUpper(string(s[0])) + s[1:]
 }
 
-func parseKinds(kindsStr string, fileKinds []KindConfig) []KindConfig {
-	var result []KindConfig
+func parseKinds(kindsStr string, programmaticKinds []KindConfig, fileKinds []KindConfig) []KindConfig {
+	if len(programmaticKinds) > 0 {
+		return programmaticKinds
+	}
 
 	if kindsStr != "" {
 		enabled := strings.Split(kindsStr, ",")
+		var result []KindConfig
 		for _, k := range enabled {
 			k = strings.TrimSpace(k)
 			result = append(result, KindConfig{
@@ -468,8 +508,8 @@ func matchGlobs(path string, includes, excludes []string) bool {
 	return len(includes) == 0
 }
 
-func yamlLoad(v any, data []byte) error {
-	return yaml.Unmarshal(data, v)
+func jsonLoad(v any, data []byte) error {
+	return json.Unmarshal(data, v)
 }
 
 const DefaultTemplate = `// Code generated by raygolib/assetgen. DO NOT EDIT.
@@ -482,7 +522,7 @@ type {{$cat.TypeName}} string
 
 const (
 {{- range $cat.Assets}}
-	{{.ConstName}} {{$.Package}}.{{$cat.TypeName}} = "{{.Filename}}"
+	{{.ConstName}} {{$cat.TypeName}} = "{{.Filename}}"
 {{- end}}
 )
 {{end}}

@@ -59,6 +59,104 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+func TestSingleRootWithGlob(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	files := []string{
+		filepath.Join(tmpDir, "font.ttf"),
+		filepath.Join(tmpDir, "shader.glsl"),
+		filepath.Join(tmpDir, "data.txt"),
+	}
+	for _, f := range files {
+		if err := os.WriteFile(f, []byte{}, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	outputPath := filepath.Join(tmpDir, "generated.go")
+
+	cfg := Config{
+		Root:       tmpDir,
+		Output:     outputPath,
+		Package:    "gameassets",
+		Kinds:      "font,shader",
+		SingleRoot: true,
+		Glob:       "*.ttf|*.glsl",
+	}
+
+	if err := Generate(cfg); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("Read output failed: %v", err)
+	}
+
+	content := string(data)
+
+	if !containsAny(content, "Font") {
+		t.Error("missing Font constant")
+	}
+	if !containsAny(content, "Shader") {
+		t.Error("missing Shader constant")
+	}
+	if containsAny(content, "data.txt") {
+		t.Error("should not include data.txt")
+	}
+}
+
+func TestMixedLayout(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	texturesDir := filepath.Join(tmpDir, "textures")
+	if err := os.MkdirAll(texturesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	files := []string{
+		filepath.Join(texturesDir, "player.png"),
+		filepath.Join(tmpDir, "font.ttf"),
+		filepath.Join(tmpDir, "shader.glsl"),
+	}
+	for _, f := range files {
+		if err := os.WriteFile(f, []byte{}, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cfg := Config{
+		Root:    tmpDir,
+		Output:  filepath.Join(tmpDir, "generated.go"),
+		Package: "gameassets",
+	}
+
+	cfg.Kinds = "texture,font,shader"
+	cfg.SingleRoot = true
+	cfg.Glob = "*.ttf|*.glsl"
+
+	if err := Generate(cfg); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	data, err := os.ReadFile(cfg.Output)
+	if err != nil {
+		t.Fatalf("Read output failed: %v", err)
+	}
+
+	content := string(data)
+
+	if !containsAny(content, "Texture") {
+		t.Error("missing Texture")
+	}
+	if !containsAny(content, "Font") {
+		t.Error("missing Font")
+	}
+	if !containsAny(content, "Shader") {
+		t.Error("missing Shader")
+	}
+}
+
 func containsAny(s string, substrs ...string) bool {
 	for _, sub := range substrs {
 		if len(sub) > 0 && contains(s, sub) {

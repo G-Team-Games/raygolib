@@ -11,10 +11,13 @@ import (
 func main() {
 	cfg := assetgen.DefaultConfig()
 
+	var singleRoot bool
+	var glob string
+
 	flag.StringVar(&cfg.Root, "root", "", "Root directory to scan for assets")
 	flag.StringVar(&cfg.Output, "out", "", "Output file path")
 	flag.StringVar(&cfg.Package, "pkg", "", "Go package name for output")
-	flag.StringVar(&cfg.ConfigFile, "config", "", "YAML/JSON config file (overrides flags)")
+	flag.StringVar(&cfg.ConfigFile, "config", "", "JSON config file (overrides flags)")
 	flag.StringVar(&cfg.Naming, "naming", "pascal", "Naming style: pascal, camel, snake, upper_snake")
 	flag.StringVar(&cfg.Prefix, "prefix", "", "Constant prefix (optional)")
 	flag.StringVar(&cfg.Kinds, "kinds", "", "Comma-separated kinds to include")
@@ -22,8 +25,17 @@ func main() {
 	flag.StringVar(&cfg.Exclude, "exclude", "", "Comma-separated glob patterns to exclude")
 	flag.StringVar(&cfg.StripPrefix, "strip-prefix", "", "Path prefix to strip from keys")
 	flag.StringVar(&cfg.TemplateFile, "template", "", "Custom Go template file")
+	flag.BoolVar(&singleRoot, "single-root", false, "Scan root directory for all assets (no subdirs)")
+	flag.StringVar(&glob, "glob", "", "File pattern filter (e.g. '*.ttf|*.otf')")
 
 	flag.Parse()
+
+	if singleRoot {
+		cfg.SingleRoot = true
+	}
+	if glob != "" {
+		cfg.Glob = glob
+	}
 
 	if err := assetgen.Generate(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
