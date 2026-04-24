@@ -5,6 +5,7 @@ go 1.25.6
 require (
 	github.com/chewxy/math32 v1.11.1
 	github.com/gen2brain/raylib-go/raylib v0.55.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
