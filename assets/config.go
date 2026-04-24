@@ -66,7 +66,9 @@ func DefaultConfig() Config {
 
 type Manager struct {
 	*AssetManager
-	cfg Config
+	cfg      Config
+	ownerGID int64
+	opQueue  chan func()
 }
 
 func NewManager(opts ...Option) (*Manager, error) {
@@ -87,6 +89,8 @@ func NewManager(opts ...Option) (*Manager, error) {
 	return &Manager{
 		AssetManager: NewAssetManagerWithResolver(cfg.Resolver),
 		cfg:          cfg,
+		ownerGID:     currentGID(),
+		opQueue:      make(chan func(), 1024),
 	}, nil
 }
 
