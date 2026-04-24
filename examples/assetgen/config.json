@@ -1,0 +1,10 @@
+{
+  "roots": ["assets"],
+  "kinds": [
+    {"kind": "texture", "dir": "textures", "type": "TextureName"},
+    {"kind": "sound", "dir": "audio", "type": "SoundName"}
+  ],
+  "naming": "pascal",
+  "package": "assets",
+  "output": "assets/generated.go"
+}
