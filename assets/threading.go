@@ -355,3 +355,13 @@ func (m *Manager) ClearAll() error {
 func (m *Manager) Close() error {
 	return m.ClearAll()
 }
+
+func (m *Manager) Keys(k Kind) []string {
+	return m.AssetManager.Keys(k)
+}
+
+func (m *Manager) ReloadAll() error {
+	return m.runOrQueue(func() {
+		m.AssetManager.ReloadAll()
+	})
+}

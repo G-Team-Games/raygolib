@@ -13,8 +13,10 @@ type DebugAware interface {
 
 type DebugConfig struct {
 	StartEnabled bool
-	ToggleKey    int32 // Raylib constant type for keys is int32
+	ToggleKey    int32
 	ShowFPS      bool
+	HotReloadKey int32
+	OnHotReload  func()
 }
 
 func defaultDebugConfig() DebugConfig {
@@ -26,11 +28,13 @@ func defaultDebugConfig() DebugConfig {
 }
 
 type debugWrapper struct {
-	next      Game
-	debug     *DebugAPI
-	toggleKey int32
-	showFPS   bool
-	backend   irl.DebugBackend
+	next         Game
+	debug        *DebugAPI
+	toggleKey    int32
+	showFPS      bool
+	hotReloadKey int32
+	onHotReload  func()
+	backend      irl.DebugBackend
 }
 
 func (d *debugWrapper) Init() error {
@@ -48,6 +52,10 @@ func (d *debugWrapper) Unwrap() Game {
 func (d *debugWrapper) Update(dt float32) error {
 	if d.toggleKey != 0 && d.backend.IsKeyPressed(d.toggleKey) {
 		d.debug.Toggle()
+	}
+
+	if d.hotReloadKey != 0 && d.onHotReload != nil && d.backend.IsKeyPressed(d.hotReloadKey) {
+		d.onHotReload()
 	}
 
 	return d.next.Update(dt)
@@ -135,11 +143,13 @@ func DebugMiddlewareWithConfig(cfg DebugConfig) Middleware {
 		}
 
 		return &debugWrapper{
-			next:      next,
-			debug:     debug,
-			toggleKey: cfg.ToggleKey,
-			showFPS:   cfg.ShowFPS,
-			backend:   debugBackend,
+			next:         next,
+			debug:        debug,
+			toggleKey:    cfg.ToggleKey,
+			showFPS:      cfg.ShowFPS,
+			hotReloadKey: cfg.HotReloadKey,
+			onHotReload:  cfg.OnHotReload,
+			backend:      debugBackend,
 		}
 	}
 }

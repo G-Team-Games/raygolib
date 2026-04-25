@@ -84,6 +84,18 @@ func (c *ResourceCache[T]) Get(key string) (*Resource[T], bool) {
 	return e.resource, true
 }
 
+func (c *ResourceCache[T]) Keys() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	res := make([]string, 0, len(c.items))
+	for k, e := range c.items {
+		if e.resource != nil && !e.loading {
+			res = append(res, k)
+		}
+	}
+	return res
+}
+
 func (c *ResourceCache[T]) Reload(key string) error {
 	c.mu.Lock()
 	e, ok := c.items[key]
@@ -427,4 +439,57 @@ func (am *AssetManager) ClearAll() {
 	am.music.Clear()
 	am.fonts.Clear()
 	am.shaders.Clear()
+}
+
+func (am *AssetManager) Keys(k Kind) []string {
+	switch k {
+	case KindModel:
+		return am.models.Keys()
+	case KindTexture:
+		return am.textures.Keys()
+	case KindImage:
+		return am.images.Keys()
+	case KindSound:
+		return am.sounds.Keys()
+	case KindMusic:
+		return am.music.Keys()
+	case KindFont:
+		return am.fonts.Keys()
+	case KindShader:
+		return am.shaders.Keys()
+	default:
+		return nil
+	}
+}
+
+func (am *AssetManager) ReloadAll() {
+	for _, key := range am.textures.Keys() {
+		am.ReloadTexture(key)
+	}
+	for _, key := range am.models.Keys() {
+		am.ReloadModel(key)
+	}
+	for _, key := range am.images.Keys() {
+		am.ReloadImage(key)
+	}
+	for _, key := range am.sounds.Keys() {
+		am.ReloadSound(key)
+	}
+	for _, key := range am.music.Keys() {
+		am.ReloadMusic(key)
+	}
+	for _, key := range am.fonts.Keys() {
+		parts := strings.SplitN(key, ":", 2)
+		size := 16
+		if len(parts) == 2 {
+			fmt.Sscanf(parts[1], "%d", &size)
+		}
+		am.ReloadFont(parts[0], size)
+	}
+	for _, key := range am.shaders.Keys() {
+		parts := strings.SplitN(key, "|", 2)
+		if len(parts) == 2 {
+			am.ReloadShader(parts[0], parts[1])
+		}
+	}
 }
