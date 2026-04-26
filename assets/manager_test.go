@@ -312,18 +312,24 @@ func TestManagerDetectKindUsesBuiltInExtensions(t *testing.T) {
 }
 
 func TestFontLoaderRejectsInvalidSizeKey(t *testing.T) {
-	mgrCh := make(chan *Manager, 1)
+	resultCh := make(chan error, 1)
 	go func() {
-		mgrCh <- NewManager()
-	}()
-	m := <-mgrCh
-	defer func() { _ = m.Close() }()
+		m := NewManager()
+		defer func() { resultCh <- m.Close() }()
 
-	if _, err := m.fonts.loader.Load("font.ttf:not-a-number"); err == nil {
-		t.Fatal("expected invalid font size error")
-	}
-	if _, err := m.fonts.loader.Load("font.ttf:0"); err == nil {
-		t.Fatal("expected non-positive font size error")
+		if _, err := m.fonts.loader.Load("font.ttf:not-a-number"); err == nil {
+			resultCh <- errors.New("expected invalid font size error")
+			return
+		}
+		if _, err := m.fonts.loader.Load("font.ttf:0"); err == nil {
+			resultCh <- errors.New("expected non-positive font size error")
+			return
+		}
+		resultCh <- nil
+	}()
+
+	if err := <-resultCh; err != nil {
+		t.Fatal(err)
 	}
 }
 
