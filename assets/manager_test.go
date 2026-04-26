@@ -207,6 +207,19 @@ func TestResourceHandleUnloadAndReloadReattach(t *testing.T) {
 	}
 }
 
+func TestResourceSafeRead(t *testing.T) {
+	res := &Resource[fakeResource]{Data: fakeResource{Value: 9}}
+
+	var seen int
+	res.SafeRead(func(v fakeResource) {
+		seen = v.Value
+	})
+
+	if seen != 9 {
+		t.Fatalf("SafeRead saw %d, want 9", seen)
+	}
+}
+
 func TestResourceCacheClearUnloadsAllAndZeros(t *testing.T) {
 	var unloadCalls atomic.Int32
 	cache := newResourceCache(ResourceLoader[fakeResource]{
@@ -261,17 +274,56 @@ func TestDetectKind(t *testing.T) {
 	}{
 		{"a.png", KindTexture},
 		{"a.jpg", KindTexture},
+		{"a.hdr", KindImage},
 		{"a.wav", KindSound},
+		{"a.mp3", KindMusic},
 		{"a.ttf", KindFont},
 		{"a.glsl", KindShader},
+		{"a.vs", KindShader},
+		{"a.fs", KindShader},
 		{"a.obj", KindModel},
-		{"a.unknown", ""},
+		{"A.GLB", KindModel},
+		{"a.unknown", KindUnknown},
 	}
 
 	for _, tc := range tests {
 		if got := DetectKind(tc.path); got != tc.want {
 			t.Fatalf("DetectKind(%q) = %q, want %q", tc.path, got, tc.want)
 		}
+	}
+}
+
+func TestManagerDetectKindUsesBuiltInExtensions(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		want AssetKind
+	}{
+		{"scene.GLB", KindModel},
+		{"sprite.PNG", KindTexture},
+		{"image.HDR", KindImage},
+		{"sound.MP3", KindMusic},
+		{"fx.VS", KindShader},
+		{"fx.FS", KindShader},
+	} {
+		if got := DetectKind(tc.path); got != tc.want {
+			t.Fatalf("DetectKind(%q) = %q, want %q", tc.path, got, tc.want)
+		}
+	}
+}
+
+func TestFontLoaderRejectsInvalidSizeKey(t *testing.T) {
+	mgrCh := make(chan *Manager, 1)
+	go func() {
+		mgrCh <- NewManager()
+	}()
+	m := <-mgrCh
+	defer func() { _ = m.Close() }()
+
+	if _, err := m.fonts.loader.Load("font.ttf:not-a-number"); err == nil {
+		t.Fatal("expected invalid font size error")
+	}
+	if _, err := m.fonts.loader.Load("font.ttf:0"); err == nil {
+		t.Fatal("expected non-positive font size error")
 	}
 }
 
@@ -451,6 +503,23 @@ checked:
 
 	if m.onOwnerThread() {
 		t.Fatal("expected non-owner thread flag")
+	}
+}
+
+func TestManagerCloseIsIdempotentAndStopsQueueing(t *testing.T) {
+	m := buildTestManager()
+
+	if err := m.Close(); err != nil {
+		t.Fatalf("first close failed: %v", err)
+	}
+	if err := m.Close(); err != nil {
+		t.Fatalf("second close failed: %v", err)
+	}
+
+	called := false
+	m.runOnMain(func() { called = true })
+	if called {
+		t.Fatal("expected runOnMain to be a no-op after close")
 	}
 }
 
