@@ -1,21 +1,98 @@
-package rga
+package rgl
 
 import (
 	"fmt"
+	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
-const assetsBasePath = "assets"
+// ---- Kind detection --------------------------------------------------------
 
-type Resource[T any] struct{ Data T }
+var kindExtensions = map[string]AssetKind{
+	".png":  KindTexture,
+	".jpg":  KindTexture,
+	".jpeg": KindTexture,
+	".bmp":  KindTexture,
+	".gif":  KindTexture,
+	".wav":  KindSound,
+	".ogg":  KindSound,
+	".mp3":  KindSound,
+	".glsl": KindShader,
+	".frag": KindShader,
+	".vert": KindShader,
+	".ttf":  KindFont,
+	".otf":  KindFont,
+	".obj":  KindModel,
+	".gltf": KindModel,
+	".glb":  KindModel,
+}
+
+func DetectKind(path string) AssetKind {
+	ext := strings.ToLower(filepath.Ext(path))
+	if kind, ok := kindExtensions[ext]; ok {
+		return kind
+	}
+	return ""
+}
+
+// ---- Resource & loader -----------------------------------------------------
+
+type Resource[T any] struct {
+	mu       sync.RWMutex
+	Data     T
+	path     string
+	reloader func() error
+	unloader func()
+}
+
+// safeRead executes fn while holding a read lock on the resource.
+// Use this when reading .Data from a goroutine that isn't the main thread.
+func (r *Resource[T]) safeRead(fn func(T)) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	rl.TraceLog(rl.LogDebug, "Safe read from Asset Manager executed")
+	fn(r.Data)
+}
+
+func (r *Resource[T]) Reload() error {
+	r.mu.RLock()
+	reload := r.reloader
+	r.mu.RUnlock()
+	if reload == nil {
+		return fmt.Errorf("resource handle is detached")
+	}
+	rl.TraceLog(rl.LogDebug, "%s", fmt.Sprintf("Reloading asset: %s", r.path))
+	return reload()
+}
+
+func (r *Resource[T]) Unload() {
+	r.mu.RLock()
+	unload := r.unloader
+	r.mu.RUnlock()
+	if unload != nil {
+		rl.TraceLog(rl.LogDebug, "%s", fmt.Sprintf("Unloading asset: %s", r.path))
+		unload()
+	}
+}
+
+func (r *Resource[T]) Path() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.path
+}
 
 type ResourceLoader[T any] struct {
 	Load   func(path string) (T, error)
 	Unload func(T)
 }
+
+// ---- Cache -----------------------------------------------------------------
 
 type cacheEntry[T any] struct {
 	resource *Resource[T]
@@ -24,18 +101,46 @@ type cacheEntry[T any] struct {
 }
 
 type ResourceCache[T any] struct {
-	loader ResourceLoader[T]
-	items  map[string]*cacheEntry[T]
-	mu     sync.Mutex
+	loader    ResourceLoader[T]
+	items     map[string]*cacheEntry[T]
+	mu        sync.Mutex
+	runOnMain func(fn func())
 }
 
-func NewResourceCache[T any](loader ResourceLoader[T]) *ResourceCache[T] {
-	return &ResourceCache[T]{loader: loader, items: make(map[string]*cacheEntry[T])}
+func newResourceCache[T any](loader ResourceLoader[T], runOnMain func(func())) *ResourceCache[T] {
+	return &ResourceCache[T]{
+		loader:    loader,
+		items:     make(map[string]*cacheEntry[T]),
+		runOnMain: runOnMain,
+	}
 }
 
-func (c *ResourceCache[T]) Load(key string) (*Resource[T], error) {
+func (c *ResourceCache[T]) newResource(path string, data T) *Resource[T] {
+	res := &Resource[T]{Data: data, path: path}
+	res.reloader = func() error {
+		return c.reloadByHandle(path, res)
+	}
+	res.unloader = func() {
+		c.Unload(path)
+	}
+	return res
+}
+
+func (c *ResourceCache[T]) zeroResource(res *Resource[T]) T {
+	var zero T
+	res.mu.Lock()
+	old := res.Data
+	res.Data = zero
+	res.mu.Unlock()
+	return old
+}
+
+// Load returns a cached resource, loading it (on the main thread) if needed.
+// Safe to call from any goroutine; blocks until loading completes.
+func (c *ResourceCache[T]) Load(path string) (*Resource[T], error) {
 	c.mu.Lock()
-	if e, ok := c.items[key]; ok {
+
+	if e, ok := c.items[path]; ok {
 		for e.loading {
 			e.cond.Wait()
 		}
@@ -48,98 +153,147 @@ func (c *ResourceCache[T]) Load(key string) (*Resource[T], error) {
 
 	e := &cacheEntry[T]{loading: true}
 	e.cond = sync.NewCond(&c.mu)
-	c.items[key] = e
+	c.items[path] = e
 	c.mu.Unlock()
 
-	val, err := c.loader.Load(key)
-	if err != nil {
+	var val T
+	var loadErr error
+	c.runOnMain(func() {
+		val, loadErr = c.loader.Load(path)
+	})
+	if loadErr != nil {
 		c.mu.Lock()
-		delete(c.items, key)
+		delete(c.items, path)
 		e.loading = false
 		e.cond.Broadcast()
 		c.mu.Unlock()
-		return nil, err
+		return nil, loadErr
 	}
 
-	res := &Resource[T]{Data: val}
+	res := c.newResource(path, val)
 
 	c.mu.Lock()
 	e.resource = res
 	e.loading = false
 	e.cond.Broadcast()
 	c.mu.Unlock()
-
 	return res, nil
 }
 
-func (c *ResourceCache[T]) Get(key string) (*Resource[T], bool) {
+// Get returns an already-loaded resource without triggering a load.
+func (c *ResourceCache[T]) Get(path string) (*Resource[T], bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	e, ok := c.items[key]
+	e, ok := c.items[path]
 	if !ok || e.loading || e.resource == nil {
 		return nil, false
 	}
-
 	return e.resource, true
 }
 
-func (c *ResourceCache[T]) Keys() []string {
+// Reload reloads an already-cached resource in place.
+func (c *ResourceCache[T]) Reload(path string) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	res := make([]string, 0, len(c.items))
-	for k, e := range c.items {
-		if e.resource != nil && !e.loading {
-			res = append(res, k)
-		}
-	}
-	return res
-}
-
-func (c *ResourceCache[T]) Reload(key string) error {
-	c.mu.Lock()
-	e, ok := c.items[key]
+	e, ok := c.items[path]
 	if !ok {
 		c.mu.Unlock()
-		return fmt.Errorf("asset not loaded: %s", key)
+		return fmt.Errorf("asset not loaded: %s", path)
 	}
-
 	for e.loading {
 		e.cond.Wait()
 	}
 	if e.resource == nil {
 		c.mu.Unlock()
-		return fmt.Errorf("asset not loaded: %s", key)
+		return fmt.Errorf("asset not loaded: %s", path)
 	}
-
 	e.loading = true
-	oldRes := e.resource
+	res := e.resource
 	c.mu.Unlock()
 
-	newVal, err := c.loader.Load(key)
-	if err != nil {
+	var newVal T
+	var loadErr error
+	c.runOnMain(func() {
+		newVal, loadErr = c.loader.Load(path)
+	})
+	if loadErr != nil {
 		c.mu.Lock()
 		e.loading = false
 		e.cond.Broadcast()
 		c.mu.Unlock()
-		return err
+		return loadErr
 	}
 
-	oldVal := oldRes.Data
-	oldRes.Data = newVal
+	c.runOnMain(func() {
+		res.mu.Lock()
+		oldVal := res.Data
+		res.Data = newVal
+		res.mu.Unlock()
+		c.loader.Unload(oldVal)
+	})
 
 	c.mu.Lock()
 	e.loading = false
 	e.cond.Broadcast()
 	c.mu.Unlock()
-
-	c.loader.Unload(oldVal)
 	return nil
 }
 
-func (c *ResourceCache[T]) Unload(key string) {
+func (c *ResourceCache[T]) reloadByHandle(path string, res *Resource[T]) error {
 	c.mu.Lock()
-	e, ok := c.items[key]
+	e, existed := c.items[path]
+	if existed {
+		for e.loading {
+			e.cond.Wait()
+		}
+	} else {
+		e = &cacheEntry[T]{resource: res}
+		e.cond = sync.NewCond(&c.mu)
+		c.items[path] = e
+	}
+	e.loading = true
+	c.mu.Unlock()
+
+	var newVal T
+	var loadErr error
+	c.runOnMain(func() {
+		newVal, loadErr = c.loader.Load(path)
+	})
+	if loadErr != nil {
+		c.mu.Lock()
+		if !existed {
+			delete(c.items, path)
+		}
+		e.loading = false
+		e.cond.Broadcast()
+		c.mu.Unlock()
+		return loadErr
+	}
+
+	c.runOnMain(func() {
+		var oldVal T
+		res.mu.Lock()
+		oldVal = res.Data
+		res.Data = newVal
+		res.path = path
+		res.mu.Unlock()
+		if existed {
+			c.loader.Unload(oldVal)
+		}
+	})
+
+	c.mu.Lock()
+	e.resource = res
+	e.loading = false
+	e.cond.Broadcast()
+	c.mu.Unlock()
+	return nil
+}
+
+// Unload removes a resource from the cache and frees it on the main thread.
+func (c *ResourceCache[T]) Unload(path string) {
+	c.mu.Lock()
+	e, ok := c.items[path]
 	if !ok {
 		c.mu.Unlock()
 		return
@@ -147,15 +301,33 @@ func (c *ResourceCache[T]) Unload(key string) {
 	for e.loading {
 		e.cond.Wait()
 	}
-	delete(c.items, key)
+	delete(c.items, path)
 	res := e.resource
 	c.mu.Unlock()
 
 	if res != nil {
-		c.loader.Unload(res.Data)
+		c.runOnMain(func() {
+			old := c.zeroResource(res)
+			c.loader.Unload(old)
+		})
 	}
 }
 
+// Keys returns paths of all fully-loaded entries.
+func (c *ResourceCache[T]) Keys() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	keys := make([]string, 0, len(c.items))
+	for k, e := range c.items {
+		if e.resource != nil && !e.loading {
+			keys = append(keys, k)
+		}
+	}
+	return keys
+}
+
+// Clear unloads every entry on the main thread and empties the cache.
 func (c *ResourceCache[T]) Clear() {
 	c.mu.Lock()
 	toUnload := make([]T, 0, len(c.items))
@@ -164,20 +336,22 @@ func (c *ResourceCache[T]) Clear() {
 			e.cond.Wait()
 		}
 		if e.resource != nil {
-			toUnload = append(toUnload, e.resource.Data)
+			toUnload = append(toUnload, c.zeroResource(e.resource))
 		}
 		delete(c.items, k)
 	}
 	c.mu.Unlock()
 
-	for _, item := range toUnload {
-		c.loader.Unload(item)
-	}
+	c.runOnMain(func() {
+		for _, item := range toUnload {
+			c.loader.Unload(item)
+		}
+	})
 }
 
-type AssetManager struct {
-	resolver Resolver
+// ---- Manager ---------------------------------------------------------------
 
+type Manager struct {
 	models   *ResourceCache[rl.Model]
 	textures *ResourceCache[rl.Texture2D]
 	images   *ResourceCache[rl.Image]
@@ -185,311 +359,297 @@ type AssetManager struct {
 	music    *ResourceCache[rl.Music]
 	fonts    *ResourceCache[rl.Font]
 	shaders  *ResourceCache[rl.Shader]
+
+	opQueue  chan func()
+	ownerGID atomic.Uint64
 }
 
-var GlobalManager *AssetManager
+// NewManager creates a Manager. Must be called from the main/raylib thread.
+func NewManager() *Manager {
+	m := &Manager{opQueue: make(chan func(), 4096)}
 
-func Init() {
-	GlobalManager = NewAssetManager()
-}
+	runtime.LockOSThread()
+	m.ownerGID.Store(currentGoroutineID())
 
-func NewAssetManager() *AssetManager {
-	return NewAssetManagerWithResolver(NewSingleRootResolver(assetsBasePath))
-}
-
-func NewAssetManagerWithResolver(resolver Resolver) *AssetManager {
-	if resolver == nil {
-		resolver = NewFixedDirsResolver(assetsBasePath)
-	}
-
-	am := &AssetManager{resolver: resolver}
-
-	// Here is the set of actual loading functions, those are used by generic ResourceCache.Load() method
-
-	am.models = NewResourceCache(ResourceLoader[rl.Model]{
-		Load: func(key string) (rl.Model, error) {
-			path, err := am.resolvePath(KindModel, key)
-			if err != nil {
-				return rl.Model{}, err
-			}
-			m := rl.LoadModel(path)
-			if m.MeshCount == 0 {
-				return rl.Model{}, fmt.Errorf("failed to load model: %s", key)
-			}
-			return m, nil
-		},
-		Unload: func(m rl.Model) { rl.UnloadModel(m) },
-	})
-
-	am.textures = NewResourceCache(ResourceLoader[rl.Texture2D]{
-		Load: func(key string) (rl.Texture2D, error) {
-			path, err := am.resolvePath(KindTexture, key)
-			if err != nil {
-				return rl.Texture2D{}, err
-			}
+	m.textures = newResourceCache(ResourceLoader[rl.Texture2D]{
+		Load: func(path string) (rl.Texture2D, error) {
 			tex := rl.LoadTexture(path)
 			if tex.ID == 0 {
-				return rl.Texture2D{}, fmt.Errorf("failed to load texture: %s", key)
+				return rl.Texture2D{}, fmt.Errorf("failed to load texture: %s", path)
 			}
 			return tex, nil
 		},
-		Unload: func(t rl.Texture2D) { rl.UnloadTexture(t) },
-	})
+		Unload: rl.UnloadTexture,
+	}, m.runOnMain)
 
-	am.images = NewResourceCache(ResourceLoader[rl.Image]{
-		Load: func(key string) (rl.Image, error) {
-			path, err := am.resolvePath(KindImage, key)
-			if err != nil {
-				return rl.Image{}, err
+	m.models = newResourceCache(ResourceLoader[rl.Model]{
+		Load: func(path string) (rl.Model, error) {
+			model := rl.LoadModel(path)
+			if model.MeshCount == 0 {
+				return rl.Model{}, fmt.Errorf("failed to load model: %s", path)
 			}
+			return model, nil
+		},
+		Unload: rl.UnloadModel,
+	}, m.runOnMain)
+
+	m.images = newResourceCache(ResourceLoader[rl.Image]{
+		Load: func(path string) (rl.Image, error) {
 			img := rl.LoadImage(path)
-			if img.Data == nil {
-				return rl.Image{}, fmt.Errorf("failed to load image: %s", key)
+			if img == nil || img.Data == nil {
+				return rl.Image{}, fmt.Errorf("failed to load image: %s", path)
 			}
 			return *img, nil
 		},
 		Unload: func(i rl.Image) { rl.UnloadImage(&i) },
-	})
+	}, m.runOnMain)
 
-	am.sounds = NewResourceCache(ResourceLoader[rl.Sound]{
-		Load: func(key string) (rl.Sound, error) {
-			path, err := am.resolvePath(KindSound, key)
-			if err != nil {
-				return rl.Sound{}, err
+	m.sounds = newResourceCache(ResourceLoader[rl.Sound]{
+		Load: func(path string) (rl.Sound, error) {
+			snd := rl.LoadSound(path)
+			if snd.FrameCount == 0 || snd.Stream.Buffer == nil {
+				return rl.Sound{}, fmt.Errorf("failed to load sound: %s", path)
 			}
-			s := rl.LoadSound(path)
-			// Note: raylib Sound detection differs; check Stream.Buffer or ID fields as needed
-			return s, nil
+			return snd, nil
 		},
-		Unload: func(s rl.Sound) { rl.UnloadSound(s) },
-	})
+		Unload: rl.UnloadSound,
+	}, m.runOnMain)
 
-	am.music = NewResourceCache(ResourceLoader[rl.Music]{
-		Load: func(key string) (rl.Music, error) {
-			path, err := am.resolvePath(KindMusic, key)
-			if err != nil {
-				return rl.Music{}, err
+	m.music = newResourceCache(ResourceLoader[rl.Music]{
+		Load: func(path string) (rl.Music, error) {
+			mus := rl.LoadMusicStream(path)
+			if mus.FrameCount == 0 || mus.Stream.Buffer == nil {
+				return rl.Music{}, fmt.Errorf("failed to load music: %s", path)
 			}
-			m := rl.LoadMusicStream(path)
-			return m, nil
+			return mus, nil
 		},
-		Unload: func(m rl.Music) { rl.UnloadMusicStream(m) },
-	})
+		Unload: rl.UnloadMusicStream,
+	}, m.runOnMain)
 
-	am.fonts = NewResourceCache(ResourceLoader[rl.Font]{
-		Load: func(key string) (rl.Font, error) {
-			parts := strings.SplitN(key, ":", 2)
-			path, err := am.resolvePath(KindFont, parts[0])
-			if err != nil {
-				return rl.Font{}, err
-			}
-			size := int32(16) // default size, TODO: create a const for that
+	m.fonts = newResourceCache(ResourceLoader[rl.Font]{
+		Load: func(path string) (rl.Font, error) {
+			parts := strings.SplitN(path, ":", 2)
+			fontPath := parts[0]
+			size := int32(16)
 			if len(parts) == 2 {
-				var s int
-				fmt.Sscanf(parts[1], "%d", &s)
-				size = int32(s)
+				fmt.Sscanf(parts[1], "%d", &size)
 			}
-			f := rl.LoadFontEx(path, size, nil, 0)
-			if f.Texture.ID == 0 {
-				return rl.Font{}, fmt.Errorf("failed to load font: %s", key)
+			font := rl.LoadFontEx(fontPath, size, nil, 0)
+			if font.Texture.ID == 0 {
+				return rl.Font{}, fmt.Errorf("failed to load font: %s", path)
 			}
-			return f, nil
+			return font, nil
 		},
-		Unload: func(f rl.Font) { rl.UnloadFont(f) },
-	})
+		Unload: rl.UnloadFont,
+	}, m.runOnMain)
 
-	am.shaders = NewResourceCache(ResourceLoader[rl.Shader]{
-		Load: func(key string) (rl.Shader, error) {
-			parts := strings.SplitN(key, "|", 2)
+	m.shaders = newResourceCache(ResourceLoader[rl.Shader]{
+		Load: func(path string) (rl.Shader, error) {
+			parts := strings.SplitN(path, "|", 2)
 			if len(parts) != 2 {
-				return rl.Shader{}, fmt.Errorf("invalid shader key: %s", key)
+				return rl.Shader{}, fmt.Errorf("invalid shader key (want 'vert|frag'): %s", path)
 			}
-
-			vs, err := am.resolvePath(KindShader, parts[0])
-			if err != nil {
-				return rl.Shader{}, err
-			}
-			fs, err := am.resolvePath(KindShader, parts[1])
-			if err != nil {
-				return rl.Shader{}, err
-			}
-			s := rl.LoadShader(vs, fs)
+			s := rl.LoadShader(parts[0], parts[1])
 			if s.ID == 0 {
-				return rl.Shader{}, fmt.Errorf("failed to load shader: %s", key)
+				return rl.Shader{}, fmt.Errorf("failed to load shader: %s", path)
 			}
 			return s, nil
 		},
-		Unload: func(s rl.Shader) { rl.UnloadShader(s) },
-	})
+		Unload: rl.UnloadShader,
+	}, m.runOnMain)
 
-	return am
+	return m
 }
 
-func (am *AssetManager) resolvePath(kind Kind, key string) (string, error) {
-	if am.resolver == nil {
-		return "", fmt.Errorf("assets resolver is nil")
+// runOnMain executes fn on the owner (main) thread.
+func (m *Manager) runOnMain(fn func()) {
+	rl.TraceLog(rl.LogDebug, "runOnMain called")
+	if m.onOwnerThread() {
+		rl.TraceLog(rl.LogDebug, "IT IS ON MAIN THREAD")
+		fn()
+		return
 	}
-
-	path, err := am.resolver.Resolve(kind, key)
-	if err != nil {
-		return "", err
+	done := make(chan struct{})
+	m.opQueue <- func() {
+		fn()
+		rl.TraceLog(rl.LogDebug, "FROM QUEUE ON MAIN THREAD")
+		close(done)
 	}
+	<-done
+}
 
-	if path == "" {
-		return "", fmt.Errorf("empty resolved path for kind=%q key=%q", kind, key)
+// Tick drains the pending-op queue.
+func (m *Manager) Tick() {
+	for {
+		select {
+		case fn := <-m.opQueue:
+			if fn != nil {
+				rl.TraceLog(rl.LogDebug, "Tick executing queued function")
+				fn()
+			}
+		default:
+			return
+		}
 	}
-
-	return path, nil
 }
 
-// Model wrappers
+// ---- Textures --------------------------------------------------------------
 
-func (am *AssetManager) LoadModel(filename string) (*Resource[rl.Model], error) {
-	return am.models.Load(filename)
+func (m *Manager) GetTexture(path string) (*Resource[rl.Texture2D], error) {
+	return m.textures.Load(path)
 }
-func (am *AssetManager) GetModel(filename string) (*Resource[rl.Model], bool) {
-	return am.models.Get(filename)
+func (m *Manager) Texture(path string) *Resource[rl.Texture2D] {
+	res, _ := m.textures.Get(path)
+	return res
 }
-func (am *AssetManager) ReloadModel(filename string) error { return am.models.Reload(filename) }
-func (am *AssetManager) UnloadModel(filename string)       { am.models.Unload(filename) }
+func (m *Manager) ReloadTexture(path string) error { return m.textures.Reload(path) }
+func (m *Manager) UnloadTexture(path string)       { m.textures.Unload(path) }
 
-// Texture wrappers
+// ---- Models ----------------------------------------------------------------
 
-func (am *AssetManager) LoadTexture(filename string) (*Resource[rl.Texture2D], error) {
-	return am.textures.Load(filename)
+func (m *Manager) GetModel(path string) (*Resource[rl.Model], error) { return m.models.Load(path) }
+func (m *Manager) Model(path string) *Resource[rl.Model] {
+	res, _ := m.models.Get(path)
+	return res
 }
-func (am *AssetManager) GetTexture(filename string) (*Resource[rl.Texture2D], bool) {
-	return am.textures.Get(filename)
-}
-func (am *AssetManager) ReloadTexture(filename string) error { return am.textures.Reload(filename) }
-func (am *AssetManager) UnloadTexture(filename string)       { am.textures.Unload(filename) }
+func (m *Manager) ReloadModel(path string) error { return m.models.Reload(path) }
+func (m *Manager) UnloadModel(path string)       { m.models.Unload(path) }
 
-// Image wrappers
+// ---- Images ----------------------------------------------------------------
 
-func (am *AssetManager) LoadImage(filename string) (*Resource[rl.Image], error) {
-	return am.images.Load(filename)
+func (m *Manager) GetImage(path string) (*Resource[rl.Image], error) { return m.images.Load(path) }
+func (m *Manager) Image(path string) *Resource[rl.Image] {
+	res, _ := m.images.Get(path)
+	return res
 }
-func (am *AssetManager) GetImage(filename string) (*Resource[rl.Image], bool) {
-	return am.images.Get(filename)
-}
-func (am *AssetManager) ReloadImage(filename string) error { return am.images.Reload(filename) }
-func (am *AssetManager) UnloadImage(filename string)       { am.images.Unload(filename) }
+func (m *Manager) ReloadImage(path string) error { return m.images.Reload(path) }
+func (m *Manager) UnloadImage(path string)       { m.images.Unload(path) }
 
-// Sound wrappers
+// ---- Sounds ----------------------------------------------------------------
 
-func (am *AssetManager) LoadSound(filename string) (*Resource[rl.Sound], error) {
-	return am.sounds.Load(filename)
+func (m *Manager) GetSound(path string) (*Resource[rl.Sound], error) { return m.sounds.Load(path) }
+func (m *Manager) Sound(path string) *Resource[rl.Sound] {
+	res, _ := m.sounds.Get(path)
+	return res
 }
-func (am *AssetManager) GetSound(filename string) (*Resource[rl.Sound], bool) {
-	return am.sounds.Get(filename)
-}
-func (am *AssetManager) ReloadSound(filename string) error { return am.sounds.Reload(filename) }
-func (am *AssetManager) UnloadSound(filename string)       { am.sounds.Unload(filename) }
+func (m *Manager) ReloadSound(path string) error { return m.sounds.Reload(path) }
+func (m *Manager) UnloadSound(path string)       { m.sounds.Unload(path) }
 
-// Music wrappers
+// ---- Music -----------------------------------------------------------------
 
-func (am *AssetManager) LoadMusic(filename string) (*Resource[rl.Music], error) {
-	return am.music.Load(filename)
+func (m *Manager) GetMusic(path string) (*Resource[rl.Music], error) { return m.music.Load(path) }
+func (m *Manager) Music(path string) *Resource[rl.Music] {
+	res, _ := m.music.Get(path)
+	return res
 }
-func (am *AssetManager) GetMusic(filename string) (*Resource[rl.Music], bool) {
-	return am.music.Get(filename)
-}
-func (am *AssetManager) ReloadMusic(filename string) error { return am.music.Reload(filename) }
-func (am *AssetManager) UnloadMusic(filename string)       { am.music.Unload(filename) }
+func (m *Manager) ReloadMusic(path string) error { return m.music.Reload(path) }
+func (m *Manager) UnloadMusic(path string)       { m.music.Unload(path) }
 
-// Font wrappers
+// ---- Fonts -----------------------------------------------------------------
 
-func (am *AssetManager) LoadFont(filename string, size int) (*Resource[rl.Font], error) {
-	key := fmt.Sprintf("%s:%d", filename, size)
-	return am.fonts.Load(key)
+func (m *Manager) GetFont(path string) (*Resource[rl.Font], error) { return m.fonts.Load(path) }
+func (m *Manager) Font(path string) *Resource[rl.Font] {
+	res, _ := m.fonts.Get(path)
+	return res
 }
-func (am *AssetManager) GetFont(filename string, size int) (*Resource[rl.Font], bool) {
-	key := fmt.Sprintf("%s:%d", filename, size)
-	return am.fonts.Get(key)
-}
-func (am *AssetManager) ReloadFont(filename string, size int) error {
-	key := fmt.Sprintf("%s:%d", filename, size)
-	return am.fonts.Reload(key)
-}
-func (am *AssetManager) UnloadFont(filename string, size int) {
-	key := fmt.Sprintf("%s:%d", filename, size)
-	am.fonts.Unload(key)
-}
+func (m *Manager) ReloadFont(path string) error { return m.fonts.Reload(path) }
+func (m *Manager) UnloadFont(path string)       { m.fonts.Unload(path) }
 
-// Shader wrappers
+// ---- Shaders ---------------------------------------------------------------
 
-func (am *AssetManager) LoadShader(vsFile, fsFile string) (*Resource[rl.Shader], error) {
-	key := vsFile + "|" + fsFile
-	return am.shaders.Load(key)
+func (m *Manager) GetShader(path string) (*Resource[rl.Shader], error) { return m.shaders.Load(path) }
+func (m *Manager) Shader(path string) *Resource[rl.Shader] {
+	res, _ := m.shaders.Get(path)
+	return res
 }
-func (am *AssetManager) GetShader(vsFile, fsFile string) (*Resource[rl.Shader], bool) {
-	return am.shaders.Get(vsFile + "|" + fsFile)
-}
-func (am *AssetManager) ReloadShader(vsFile, fsFile string) error {
-	return am.shaders.Reload(vsFile + "|" + fsFile)
-}
-func (am *AssetManager) UnloadShader(vsFile, fsFile string) { am.shaders.Unload(vsFile + "|" + fsFile) }
+func (m *Manager) ReloadShader(path string) error { return m.shaders.Reload(path) }
+func (m *Manager) UnloadShader(path string)       { m.shaders.Unload(path) }
 
-// Clears managers cache
-func (am *AssetManager) ClearAll() {
-	am.models.Clear()
-	am.textures.Clear()
-	am.images.Clear()
-	am.sounds.Clear()
-	am.music.Clear()
-	am.fonts.Clear()
-	am.shaders.Clear()
-}
+// ---- Bulk ops --------------------------------------------------------------
 
-func (am *AssetManager) Keys(k Kind) []string {
-	switch k {
+func (m *Manager) Keys(kind AssetKind) []string {
+	switch kind {
 	case KindModel:
-		return am.models.Keys()
+		return m.models.Keys()
 	case KindTexture:
-		return am.textures.Keys()
+		return m.textures.Keys()
 	case KindImage:
-		return am.images.Keys()
+		return m.images.Keys()
 	case KindSound:
-		return am.sounds.Keys()
+		return m.sounds.Keys()
 	case KindMusic:
-		return am.music.Keys()
+		return m.music.Keys()
 	case KindFont:
-		return am.fonts.Keys()
+		return m.fonts.Keys()
 	case KindShader:
-		return am.shaders.Keys()
+		return m.shaders.Keys()
 	default:
 		return nil
 	}
 }
 
-func (am *AssetManager) ReloadAll() {
-	for _, key := range am.textures.Keys() {
-		am.ReloadTexture(key)
-	}
-	for _, key := range am.models.Keys() {
-		am.ReloadModel(key)
-	}
-	for _, key := range am.images.Keys() {
-		am.ReloadImage(key)
-	}
-	for _, key := range am.sounds.Keys() {
-		am.ReloadSound(key)
-	}
-	for _, key := range am.music.Keys() {
-		am.ReloadMusic(key)
-	}
-	for _, key := range am.fonts.Keys() {
-		parts := strings.SplitN(key, ":", 2)
-		size := 16
-		if len(parts) == 2 {
-			fmt.Sscanf(parts[1], "%d", &size)
-		}
-		am.ReloadFont(parts[0], size)
-	}
-	for _, key := range am.shaders.Keys() {
-		parts := strings.SplitN(key, "|", 2)
-		if len(parts) == 2 {
-			am.ReloadShader(parts[0], parts[1])
+// ReloadAll reloads all currently loaded assets.
+// If onErr is nil, reload errors are ignored.
+func (m *Manager) ReloadAll(onErr func(path string, err error)) {
+	reloadCache := func(label string, keys []string, reload func(string) error) {
+		for _, key := range keys {
+			if err := reload(key); err != nil && onErr != nil {
+				onErr(key, fmt.Errorf("%s %s: %w", label, key, err))
+			}
 		}
 	}
+
+	reloadCache("model", m.models.Keys(), m.models.Reload)
+	reloadCache("texture", m.textures.Keys(), m.textures.Reload)
+	reloadCache("image", m.images.Keys(), m.images.Reload)
+	reloadCache("sound", m.sounds.Keys(), m.sounds.Reload)
+	reloadCache("music", m.music.Keys(), m.music.Reload)
+	reloadCache("font", m.fonts.Keys(), m.fonts.Reload)
+	reloadCache("shader", m.shaders.Keys(), m.shaders.Reload)
+}
+
+func (m *Manager) ClearAll() {
+	m.models.Clear()
+	m.textures.Clear()
+	m.images.Clear()
+	m.sounds.Clear()
+	m.music.Clear()
+	m.fonts.Clear()
+	m.shaders.Clear()
+}
+
+func (m *Manager) Close() error {
+	m.ClearAll()
+	close(m.opQueue)
+	return nil
+}
+
+// ---- Internal helpers ------------------------------------------------------
+
+func (m *Manager) onOwnerThread() bool {
+	owner := m.ownerGID.Load()
+	if owner == 0 {
+		return false
+	}
+	return currentGoroutineID() == owner
+}
+
+func currentGoroutineID() uint64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	prefix := "goroutine "
+	line := string(buf[:n])
+	if !strings.HasPrefix(line, prefix) {
+		return 0
+	}
+	line = line[len(prefix):]
+	space := strings.IndexByte(line, ' ')
+	if space <= 0 {
+		return 0
+	}
+	id, err := strconv.ParseUint(line[:space], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
 }
