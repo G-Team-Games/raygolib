@@ -14,23 +14,25 @@ import (
 
 // ---- Kind detection --------------------------------------------------------
 
-var kindExtensions = map[string]AssetKind{
-	".png":  KindTexture,
-	".jpg":  KindTexture,
-	".jpeg": KindTexture,
-	".bmp":  KindTexture,
-	".gif":  KindTexture,
-	".wav":  KindSound,
-	".ogg":  KindSound,
-	".mp3":  KindSound,
-	".glsl": KindShader,
-	".frag": KindShader,
-	".vert": KindShader,
-	".ttf":  KindFont,
-	".otf":  KindFont,
-	".obj":  KindModel,
-	".gltf": KindModel,
-	".glb":  KindModel,
+var kindExtensions = map[string]AssetKind{}
+
+var builtInKinds = []AssetKind{
+	KindModel,
+	KindTexture,
+	KindImage,
+	KindSound,
+	KindMusic,
+	KindFont,
+	KindShader,
+}
+
+func init() {
+	kindExtensions = make(map[string]AssetKind)
+	for _, kind := range builtInKinds {
+		for _, ext := range kind.DefaultExtensions() {
+			kindExtensions[strings.ToLower(ext)] = kind
+		}
+	}
 }
 
 func DetectKind(path string) AssetKind {
@@ -38,7 +40,7 @@ func DetectKind(path string) AssetKind {
 	if kind, ok := kindExtensions[ext]; ok {
 		return kind
 	}
-	return ""
+	return KindUnknown
 }
 
 // ---- Resource & loader -----------------------------------------------------
@@ -54,9 +56,12 @@ type Resource[T any] struct {
 // safeRead executes fn while holding a read lock on the resource.
 // Use this when reading .Data from a goroutine that isn't the main thread.
 func (r *Resource[T]) safeRead(fn func(T)) {
+	r.SafeRead(fn)
+}
+
+func (r *Resource[T]) SafeRead(fn func(T)) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	rl.TraceLog(rl.LogDebug, "Safe read from Asset Manager executed")
 	fn(r.Data)
 }
 
@@ -67,7 +72,7 @@ func (r *Resource[T]) Reload() error {
 	if reload == nil {
 		return fmt.Errorf("resource handle is detached")
 	}
-	rl.TraceLog(rl.LogDebug, "%s", fmt.Sprintf("Reloading asset: %s", r.path))
+	rl.TraceLog(rl.LogDebug, "Reloading asset: %s", r.path)
 	return reload()
 }
 
@@ -76,7 +81,7 @@ func (r *Resource[T]) Unload() {
 	unload := r.unloader
 	r.mu.RUnlock()
 	if unload != nil {
-		rl.TraceLog(rl.LogDebug, "%s", fmt.Sprintf("Unloading asset: %s", r.path))
+		rl.TraceLog(rl.LogDebug, "Unloading asset: %s", r.path)
 		unload()
 	}
 }
@@ -360,13 +365,17 @@ type Manager struct {
 	fonts    *ResourceCache[rl.Font]
 	shaders  *ResourceCache[rl.Shader]
 
-	opQueue  chan func()
-	ownerGID atomic.Uint64
+	opQueue   chan func()
+	ownerGID  atomic.Uint64
+	closed    atomic.Bool
+	closeOnce sync.Once
 }
+
+const defaultOpQueueSize = 4096
 
 // NewManager creates a Manager. Must be called from the main/raylib thread.
 func NewManager() *Manager {
-	m := &Manager{opQueue: make(chan func(), 4096)}
+	m := &Manager{opQueue: make(chan func(), defaultOpQueueSize)}
 
 	runtime.LockOSThread()
 	m.ownerGID.Store(currentGoroutineID())
@@ -432,7 +441,11 @@ func NewManager() *Manager {
 			fontPath := parts[0]
 			size := int32(16)
 			if len(parts) == 2 {
-				fmt.Sscanf(parts[1], "%d", &size)
+				parsed, err := strconv.ParseInt(parts[1], 10, 32)
+				if err != nil || parsed <= 0 {
+					return rl.Font{}, fmt.Errorf("invalid font size in key: %s", path)
+				}
+				size = int32(parsed)
 			}
 			font := rl.LoadFontEx(fontPath, size, nil, 0)
 			if font.Texture.ID == 0 {
@@ -462,18 +475,33 @@ func NewManager() *Manager {
 }
 
 // runOnMain executes fn on the owner (main) thread.
+// If called from another goroutine, the callback is queued and the caller blocks
+// until Tick drains the queue and executes it.
 func (m *Manager) runOnMain(fn func()) {
-	rl.TraceLog(rl.LogDebug, "runOnMain called")
+	if fn == nil || m.closed.Load() {
+		return
+	}
+
 	if m.onOwnerThread() {
-		rl.TraceLog(rl.LogDebug, "IT IS ON MAIN THREAD")
 		fn()
 		return
 	}
+
 	done := make(chan struct{})
-	m.opQueue <- func() {
-		fn()
-		rl.TraceLog(rl.LogDebug, "FROM QUEUE ON MAIN THREAD")
-		close(done)
+	queued := true
+	func() {
+		defer func() {
+			if recover() != nil {
+				queued = false
+			}
+		}()
+		m.opQueue <- func() {
+			fn()
+			close(done)
+		}
+	}()
+	if !queued {
+		return
 	}
 	<-done
 }
@@ -482,9 +510,11 @@ func (m *Manager) runOnMain(fn func()) {
 func (m *Manager) Tick() {
 	for {
 		select {
-		case fn := <-m.opQueue:
+		case fn, ok := <-m.opQueue:
+			if !ok {
+				return
+			}
 			if fn != nil {
-				rl.TraceLog(rl.LogDebug, "Tick executing queued function")
 				fn()
 			}
 		default:
@@ -599,28 +629,23 @@ func (m *Manager) ReloadAll(onErr func(path string, err error)) {
 		}
 	}
 
-	reloadCache("model", m.models.Keys(), m.models.Reload)
-	reloadCache("texture", m.textures.Keys(), m.textures.Reload)
-	reloadCache("image", m.images.Keys(), m.images.Reload)
-	reloadCache("sound", m.sounds.Keys(), m.sounds.Reload)
-	reloadCache("music", m.music.Keys(), m.music.Reload)
-	reloadCache("font", m.fonts.Keys(), m.fonts.Reload)
-	reloadCache("shader", m.shaders.Keys(), m.shaders.Reload)
+	for _, c := range m.cacheOrder() {
+		reloadCache(c.label, c.keys(), c.reload)
+	}
 }
 
 func (m *Manager) ClearAll() {
-	m.models.Clear()
-	m.textures.Clear()
-	m.images.Clear()
-	m.sounds.Clear()
-	m.music.Clear()
-	m.fonts.Clear()
-	m.shaders.Clear()
+	for _, c := range m.cacheOrder() {
+		c.clear()
+	}
 }
 
 func (m *Manager) Close() error {
-	m.ClearAll()
-	close(m.opQueue)
+	m.closeOnce.Do(func() {
+		m.ClearAll()
+		m.closed.Store(true)
+		close(m.opQueue)
+	})
 	return nil
 }
 
@@ -652,4 +677,23 @@ func currentGoroutineID() uint64 {
 		return 0
 	}
 	return id
+}
+
+type managerCacheOps struct {
+	label  string
+	keys   func() []string
+	reload func(string) error
+	clear  func()
+}
+
+func (m *Manager) cacheOrder() []managerCacheOps {
+	return []managerCacheOps{
+		{label: "model", keys: m.models.Keys, reload: m.models.Reload, clear: m.models.Clear},
+		{label: "texture", keys: m.textures.Keys, reload: m.textures.Reload, clear: m.textures.Clear},
+		{label: "image", keys: m.images.Keys, reload: m.images.Reload, clear: m.images.Clear},
+		{label: "sound", keys: m.sounds.Keys, reload: m.sounds.Reload, clear: m.sounds.Clear},
+		{label: "music", keys: m.music.Keys, reload: m.music.Reload, clear: m.music.Clear},
+		{label: "font", keys: m.fonts.Keys, reload: m.fonts.Reload, clear: m.fonts.Clear},
+		{label: "shader", keys: m.shaders.Keys, reload: m.shaders.Reload, clear: m.shaders.Clear},
+	}
 }
