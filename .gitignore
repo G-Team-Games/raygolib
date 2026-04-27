@@ -12,6 +12,7 @@
 *.test
 
 # Code coverage profiles and other test artifacts
+/dev/coverage
 *.out
 coverage.*
 *.coverprofile
@@ -36,4 +37,7 @@ go.work.sum
 
 # Opencode
 AGENTS.md
+
+# Other
+/tmp
 
