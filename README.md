@@ -4,6 +4,9 @@ Zombie-simple game library for Go, built on top of raylib. It provides a simple 
 
 Note that this library has [raylib-go](https://github.com/gen2brain/raylib-go) ([raylib](https://github.com/raysan5/raylib) binding for Go) as a _dependency_. You can use raylib features like you would in any other raylib project. It it also inspired by [Ebitengine](https://github.com/hajimehoshi/ebiten) and its _dead simplicity_.
 
+> [!NOTE] This library is during active development
+> There is no release yet, but if you want to contribute scroll down to know more.
+
 ## Quick usage
 
 ```go
