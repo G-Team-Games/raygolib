@@ -1,4 +1,4 @@
-package rgl
+package rga
 
 import (
 	"bytes"

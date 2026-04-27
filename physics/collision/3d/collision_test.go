@@ -1,4 +1,4 @@
-package col3d
+package rgcol3d
 
 import (
 	"math"

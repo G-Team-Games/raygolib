@@ -1,3 +1,3 @@
-package col2d
+package rgcol2d
 
 type Contact struct {}
