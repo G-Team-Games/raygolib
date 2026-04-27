@@ -2,51 +2,54 @@
 
 Scope: contact detection, penetration/normal contracts, distance invariants, raycast correctness, resolver behavior, collider draw helpers.
 
-## `physics/collision/3d/collision_test.go`
+### Geometry helpers (`physics/collision/3d/collision_test.go`)
 
-- `TestBoxVsBoxContact`: verifies overlap hit with positive penetration and separated miss for box-box.
 - `TestBoxHelpers`: verifies box center/min/max helper math.
-- `TestRaycastBox`: verifies box raycast hit + hit point population.
-- `TestCylinderVsBoxContactAndResolve`: verifies cylinder-box contact and `ResolveMTV` moves collider.
 - `TestPlaneAxisNormal`: verifies axis enum returns expected plane normal.
 - `TestCylinderCenter`: verifies cylinder center math.
 - `TestPlaneCenter`: verifies center calculations for X/Y/Z planes.
-- `TestContract_CollideNormalPointsFromBToA`: verifies normal direction contract (from B toward A).
-- `TestContract_TouchingIsHitWithZeroPenetration`: verifies touching counts as hit with zero penetration.
-- `TestDistance_BoxVsBox_OverlapIsZero`: verifies distance is zero for overlapping boxes.
-- `TestDistance_CylinderVsCylinder_OverlapIsZero`: verifies distance is zero for overlapping cylinders.
-- `TestDistance_PointVsCylinder_OutsideCircleNonZero`: verifies positive distance for outside point.
-- `TestDistance_SymmetryForSupportedPairs`: verifies distance symmetry across supported pair families.
-- `TestDistance_UnsupportedPairReturnsInf`: verifies unsupported pair distance returns `+Inf`.
-- `TestResolveMTV_ReducesOverlap_BoxBoxInOneStep`: verifies one-step MTV resolve reduces overlap to touching state.
-- `TestCollide_ReverseOrderNormalsAreOpposite_WhenBothSupported`: verifies reverse-order collisions keep penetration and invert normal.
-- `TestCylinderVsHorizontalPlane_MinimalTranslationDirection`: verifies nearest MTV direction and expected penetration for cylinder-plane.
-- `TestCollide_OrderIndependence_AllSupportedUnorderedPairs`: verifies order invariants across matrix of supported pairs.
-- `TestRaycastCylinder_SideHit`: verifies side-hit intersection point/normal.
-- `TestRaycastCylinder_TopHit`: verifies top-cap intersection point/normal.
-- `TestRaycastCylinder_BottomHit`: verifies bottom-cap intersection point/normal.
-- `TestRaycastCylinder_Miss`: verifies miss case returns no hit.
-- `TestRaycastCylinder_TallCylinderTopHit`: verifies tall-cylinder top-cap raycast.
-- `TestRaycastPlane_NormalMatchesAxis`: verifies raycast hit normals follow axis orientation variants.
-- `TestCollisionMatrix_BoundaryAndReverseOrder`: verifies broad matrix of touch/overlap/separation scenarios + reverse-order invariants.
-- `TestDistanceInvariants_Matrix`: verifies finite/non-negative/symmetric distance and zero-vs-positive behavior across matrix.
 
-### Subtests with broad scenario matrices
+### Contact contracts (`physics/collision/3d/collision_test.go`)
 
-- `TestCollisionMatrix_BoundaryAndReverseOrder/*`: per-scenario assertions for hit expectation, penetration sign, reverse-order normal inversion.
-- `TestDistanceInvariants_Matrix/*`: per-scenario assertions for finite distance, symmetry, overlap zero, separation positive.
+- `TestBoxVsBoxContact`: overlap hit with positive penetration and separated miss for box-box.
+- `TestCylinderVsBoxContactAndResolve`: cylinder-box hit and movement after `ResolveMTV`.
+- `TestContract_CollideNormalPointsFromBToA`: normal direction contract (from B toward A).
+- `TestContract_TouchingIsHitWithZeroPenetration`: touching counts as hit with zero penetration.
+- `TestCollide_ReverseOrderNormalsAreOpposite_WhenBothSupported`: reverse order keeps penetration, flips normal.
+- `TestCylinderVsHorizontalPlane_MinimalTranslationDirection`: nearest MTV direction and penetration for cylinder-plane.
+- `TestCollide_OrderIndependence_AllSupportedUnorderedPairs`: order invariants across supported collider pairs.
 
-## `physics/collision/3d/resolver_test.go`
+### Distance invariants (`physics/collision/3d/collision_test.go`)
 
-- `TestResolveMultiMTV`: verifies multi-collider iterative resolve converges when sufficient iteration budget exists.
+- `TestDistance_BoxVsBox_OverlapIsZero`: overlapping boxes have zero distance.
+- `TestDistance_CylinderVsCylinder_OverlapIsZero`: overlapping cylinders have zero distance.
+- `TestDistance_PointVsCylinder_OutsideCircleNonZero`: outside point has positive distance.
+- `TestDistance_SymmetryForSupportedPairs`: supported pairs are symmetric.
+- `TestDistance_UnsupportedPairReturnsInf`: unsupported pair distance returns `+Inf`.
+- `TestDistanceInvariants_Matrix`: matrix coverage for finite/non-negative/symmetric/zero-vs-positive invariants.
 
-## `physics/collision/3d/draw_colliders_test.go`
+### Raycast behavior (`physics/collision/3d/collision_test.go`)
 
-- `TestPlaneDrawBox_AppliesThicknessOnFlatAxis`: verifies debug draw helper injects default thickness on plane flat axis.
-- `TestPlaneDrawBox_CenterUsesExpandedSize`: verifies draw center computed from expanded size.
+- `TestRaycastBox`: box raycast hit + hit point population.
+- `TestRaycastCylinder_SideHit`: side-hit intersection point/normal.
+- `TestRaycastCylinder_TopHit`: top-cap intersection point/normal.
+- `TestRaycastCylinder_BottomHit`: bottom-cap intersection point/normal.
+- `TestRaycastCylinder_Miss`: miss case returns no hit.
+- `TestRaycastCylinder_TallCylinderTopHit`: top-cap hit on tall cylinder.
+- `TestRaycastPlane_NormalMatchesAxis`: hit normals follow each plane axis orientation.
 
-## Why this category matters
+### Resolver behavior (`physics/collision/3d/collision_test.go`, `physics/collision/3d/resolver_test.go`)
 
-- Guards engine physics contracts where subtle normal/penetration bugs cause visible gameplay defects.
-- Guards order-independence and symmetry invariants needed for deterministic behavior.
-- Guards raycast and debug draw correctness used by gameplay and tooling.
+- `TestResolveMTV_ReducesOverlap_BoxBoxInOneStep`: one-step resolve reduces overlap to touching.
+- `TestResolveMultiMTV`: iterative multi-collider resolve converges with sufficient iterations.
+
+### Draw helper behavior (`physics/collision/3d/draw_colliders_test.go`)
+
+- `TestPlaneDrawBox_AppliesThicknessOnFlatAxis`: draw helper injects thickness on plane flat axis.
+- `TestPlaneDrawBox_CenterUsesExpandedSize`: draw center computed from expanded size.
+
+### Matrix regression suites
+
+- `TestCollisionMatrix_BoundaryAndReverseOrder`: scenario matrix for touch/overlap/separation + reverse-order invariants.
+- `TestCollisionMatrix_BoundaryAndReverseOrder/*`: per-scenario hit expectation, penetration sign, opposite normals.
+- `TestDistanceInvariants_Matrix/*`: per-scenario finite/non-negative/symmetric/zero-vs-positive checks.

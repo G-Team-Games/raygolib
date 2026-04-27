@@ -2,47 +2,38 @@
 
 Scope: game initializer/config merge, middleware ordering, game loop orchestration, debug API/middleware behavior.
 
-## `game_test.go`
+### Config and init (`game_test.go`)
 
-- `TestInitGameSuite`: verifies `InitGame` stores game + default config, `InitGameWithConfig` merges custom fields while preserving defaults for zero values.
-- `TestMergeInitGameConfigsSuite`: verifies non-zero override semantics in `mergeInitGameConfigs`.
-- `TestWithMiddlewareSuite`: verifies middleware wrapping order contract (last added is outermost) for init/update/draw/close chain.
-- `TestRunSuite`: verifies `Run` integration with backend lifecycle, update/draw call counts, dt forwarding, and update-error early-exit with guaranteed `CloseWindow`.
+- `TestInitGameSuite`: verifies `InitGame` stores game + default config, and `InitGameWithConfig` merges custom fields while keeping zero-value defaults.
+- `TestInitGameSuite/uses default config`: checks canonical defaults and stored game pointer.
+- `TestInitGameSuite/merges custom config`: checks partial override semantics.
+- `TestMergeInitGameConfigsSuite`: verifies config merge helper behavior.
+- `TestMergeInitGameConfigsSuite/overrides non-zero values`: checks non-zero overrides across all fields.
 
-### Subtests in `TestInitGameSuite`
+### Middleware chain (`game_test.go`)
 
-- `uses default config`: checks initializer keeps passed game and applies canonical defaults.
-- `merges custom config`: checks partial custom config overrides only non-zero fields.
+- `TestWithMiddlewareSuite`: verifies wrapping order contract (last added is outermost).
+- `TestWithMiddlewareSuite/applies in order`: checks exact init/update/draw/close call sequence.
 
-### Subtests in `TestMergeInitGameConfigsSuite`
+### Run loop and error path (`game_test.go`)
 
-- `overrides non-zero values`: checks full-field non-zero override.
+- `TestRunSuite`: verifies backend lifecycle integration and frame loop behavior.
+- `TestRunSuite/calls game loop and backend`: checks window init args, FPS setup, begin/end drawing counts, dt propagation.
+- `TestRunSuite/returns update error and closes window`: checks update error propagation, draw short-circuit, cleanup on failure.
 
-### Subtests in `TestWithMiddlewareSuite`
+### Debug API (`debug_test.go`)
 
-- `applies in order`: checks call trace order through stacked middleware and wrapped game.
+- `TestDebugAPISuite`: verifies draw queueing, flushing, and enabled-state toggling.
+- `TestDebugAPISuite/Rect disabled does not queue`: disabled state must not enqueue debug draw ops.
+- `TestDebugAPISuite/Rect enabled queues`: enabled state must enqueue draw ops.
+- `TestDebugAPISuite/Flush clears queue and draws`: queued ops are rendered then queue is emptied.
+- `TestDebugAPISuite/Toggle flips enabled state`: toggle changes state both directions.
 
-### Subtests in `TestRunSuite`
+### Debug middleware (`debug_test.go`)
 
-- `calls game loop and backend`: checks backend init/FPS/drawing/close calls and game update/draw dt values.
-- `returns update error and closes window`: checks error propagation, draw short-circuit, and cleanup on failure.
-
-## `debug_test.go`
-
-- `TestDebugAPISuite`: verifies queueing behavior when debug disabled/enabled, flush rendering+clear, and toggle state transitions.
-- `TestDebugMiddlewareSuite`: verifies middleware injects global `DebugAPI`, handles toggle key, and draws/skips FPS based on config/state.
-
-### Subtests in `TestDebugAPISuite`
-
-- `Rect disabled does not queue`: no draw operations queued when API disabled.
-- `Rect enabled queues`: draw operation queued when API enabled.
-- `Flush clears queue and draws`: queued draw commands render to backend and queue clears.
-- `Toggle flips enabled state`: toggle switches enabled flag both directions.
-
-### Subtests in `TestDebugMiddlewareSuite`
-
-- `injects and configures`: validates `DebugAware` injection, singleton replacement, wrapper config mapping.
-- `Update toggles on key press`: validates key-driven enable toggle on update.
-- `Draw calls FPS when enabled`: validates FPS drawing path when enabled and `ShowFPS` true.
-- `Draw skips FPS when disabled`: validates no FPS draw and draw queue clear when disabled.
-- `Draw skips FPS when hidden`: validates no FPS draw when `ShowFPS` false.
+- `TestDebugMiddlewareSuite`: verifies injection, key-toggle behavior, and FPS drawing gates.
+- `TestDebugMiddlewareSuite/injects and configures`: validates `DebugAware` injection, singleton assignment, wrapper config copy.
+- `TestDebugMiddlewareSuite/Update toggles on key press`: validates configured key toggles debug enabled state.
+- `TestDebugMiddlewareSuite/Draw calls FPS when enabled`: validates FPS draw path when enabled and `ShowFPS=true`.
+- `TestDebugMiddlewareSuite/Draw skips FPS when disabled`: validates no FPS draw and queue clear when disabled.
+- `TestDebugMiddlewareSuite/Draw skips FPS when hidden`: validates no FPS draw when `ShowFPS=false`.
