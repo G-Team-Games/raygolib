@@ -3,8 +3,8 @@
 DOCKER_COMPOSE ?= docker compose
 COMPOSE_PATH = dev/docker-compose.yml
 COVERAGE_DIR := coverage
-COVERAGE_OUT := $(COVERAGE_DIR)/coverage.out
-COVERAGE_FILTERED := $(COVERAGE_DIR)/filtered.out
+COVERAGE_OUT := $(COVERAGE_DIR)/raw_coverage.out
+COVERAGE_FILTERED := $(COVERAGE_DIR)/coverage.out
 COVERAGE_EXCL := internal/raylib internal/testutils cmd/covfilter
 
 help:
