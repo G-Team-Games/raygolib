@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -10,7 +11,17 @@ import (
 )
 
 func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, rgl.Generate))
+}
+
+func run(args []string, stdout, stderr io.Writer, generate func(rgl.Config) error) int {
 	cfg := rgl.DefaultConfig()
+	if generate == nil {
+		generate = rgl.Generate
+	}
+
+	fs := flag.NewFlagSet("assetgen", flag.ContinueOnError)
+	fs.SetOutput(stderr)
 
 	var singleRoot bool
 	var glob string
@@ -21,24 +32,26 @@ func main() {
 	var flatTypeName string
 	var kinds string
 
-	flag.StringVar(&cfg.Root, "root", "", "Root directory to scan for assets")
-	flag.StringVar(&cfg.Output, "out", "", "Output file path")
-	flag.StringVar(&cfg.Package, "pkg", "", "Go package name for output")
-	flag.StringVar(&cfg.ConfigFile, "config", "", "JSON config file (overrides flags)")
-	flag.StringVar(&cfg.Naming, "naming", "pascal", "Naming style: pascal, camel, snake, upper_snake")
-	flag.StringVar(&cfg.Prefix, "prefix", "", "Constant prefix (optional)")
-	flag.StringVar(&kinds, "kinds", "", "Comma-separated kinds to include")
-	flag.StringVar(&cfg.StripPrefix, "strip-prefix", "", "Path prefix to strip from keys")
-	flag.StringVar(&cfg.TemplateFile, "template", "", "Custom Go template file")
-	flag.BoolVar(&singleRoot, "single-root", cfg.SingleRoot, "Scan root directory for all assets (no subdirs)")
-	flag.BoolVar(&recursive, "recursive", cfg.Recursive, "Recursively scan subdirectories")
-	flag.StringVar(&glob, "glob", "", "File pattern filter (e.g. '*.ttf|*.otf')")
-	flag.BoolVar(&dryRun, "dry-run", false, "Print generated output to stdout instead of writing file")
-	flag.BoolVar(&verbose, "v", false, "Print verbose debug output")
-	flag.BoolVar(&flatMode, "flat-mode", false, "Generate one asset category and type")
-	flag.StringVar(&flatTypeName, "flat-type", "", "Type name used when -flat-mode is enabled")
+	fs.StringVar(&cfg.Root, "root", "", "Root directory to scan for assets")
+	fs.StringVar(&cfg.Output, "out", "", "Output file path")
+	fs.StringVar(&cfg.Package, "pkg", "", "Go package name for output")
+	fs.StringVar(&cfg.ConfigFile, "config", "", "JSON config file (overrides flags)")
+	fs.StringVar(&cfg.Naming, "naming", "pascal", "Naming style: pascal, camel, snake, upper_snake")
+	fs.StringVar(&cfg.Prefix, "prefix", "", "Constant prefix (optional)")
+	fs.StringVar(&kinds, "kinds", "", "Comma-separated kinds to include")
+	fs.StringVar(&cfg.StripPrefix, "strip-prefix", "", "Path prefix to strip from keys")
+	fs.StringVar(&cfg.TemplateFile, "template", "", "Custom Go template file")
+	fs.BoolVar(&singleRoot, "single-root", cfg.SingleRoot, "Scan root directory for all assets (no subdirs)")
+	fs.BoolVar(&recursive, "recursive", cfg.Recursive, "Recursively scan subdirectories")
+	fs.StringVar(&glob, "glob", "", "File pattern filter (e.g. '*.ttf|*.otf')")
+	fs.BoolVar(&dryRun, "dry-run", false, "Print generated output to stdout instead of writing file")
+	fs.BoolVar(&verbose, "v", false, "Print verbose debug output")
+	fs.BoolVar(&flatMode, "flat-mode", false, "Generate one asset category and type")
+	fs.StringVar(&flatTypeName, "flat-type", "", "Type name used when -flat-mode is enabled")
 
-	flag.Parse()
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
 	cfg.SingleRoot = singleRoot
 	cfg.Recursive = recursive
@@ -57,19 +70,20 @@ func main() {
 	}
 
 	if verbose {
-		fmt.Fprintf(os.Stderr, "Config:\n")
-		cfg.Dump(os.Stderr)
+		fmt.Fprintf(stderr, "Config:\n")
+		cfg.Dump(stderr)
 	}
 
-	if err := rgl.Generate(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if err := generate(cfg); err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
 	}
 	if dryRun {
-		fmt.Println("Dry run complete")
-		return
+		fmt.Fprintln(stdout, "Dry run complete")
+		return 0
 	}
-	fmt.Println("Generated successfully")
+	fmt.Fprintln(stdout, "Generated successfully")
+	return 0
 }
 
 func parseStringKinds(kindsStr string) []rgl.KindConfig {
