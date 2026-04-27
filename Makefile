@@ -2,10 +2,10 @@
 
 DOCKER_COMPOSE ?= docker compose
 COMPOSE_PATH = dev/docker-compose.yml
-COVERAGE_DIR := coverage
-COVERAGE_OUT := $(COVERAGE_DIR)/coverage.out
-COVERAGE_FILTERED := $(COVERAGE_DIR)/filtered.out
-COVERAGE_EXCL := internal/raylib internal/testutils cmd/covfilter
+COVERAGE_DIR := dev/coverage
+COVERAGE_OUT := $(COVERAGE_DIR)/raw_coverage.out
+COVERAGE_FILTERED := $(COVERAGE_DIR)/coverage.out
+COVERAGE_EXCL := internal/raylib internal/testutils dev/scripts
 
 help:
 	@echo "Available targets:"
@@ -18,12 +18,12 @@ help:
 	@echo "  make sonar-scan      - run sonar scanner (requires SONAR_TOKEN in environment)"
 
 test:
-	go test -race ./...
+	go test -v -race ./...
 
 coverage:
 	mkdir -p $(COVERAGE_DIR)
 	go test -coverprofile=$(COVERAGE_OUT) ./...
-	go run ./cmd/covfilter $(COVERAGE_EXCL) < $(COVERAGE_OUT) > $(COVERAGE_FILTERED)
+	go run ./dev/scripts/covfilter $(COVERAGE_EXCL) < $(COVERAGE_OUT) > $(COVERAGE_FILTERED)
 	go tool cover -func=$(COVERAGE_FILTERED)
 
 clean-coverage:

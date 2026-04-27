@@ -1,1 +1,1 @@
-package col2d
+package rgcol2d

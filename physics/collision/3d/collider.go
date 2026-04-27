@@ -1,5 +1,5 @@
 // Package col3d provides simple 3D collision and raycast primitives.
-package col3d
+package rgcol3d
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
